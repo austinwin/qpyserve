@@ -116,7 +116,8 @@ def build_frontend(folder: Path) -> None:
 
 
 def vite_config(folder: Path, *, host: str, port: int, backend_port: int,
-                api_paths: Iterable[str] = DEFAULT_API_PATHS) -> Path:
+                api_paths: Iterable[str] = DEFAULT_API_PATHS,
+                trace_enabled: bool = False) -> Path:
     config = folder / ".qpyserve.vite.config.mjs"
     existing = next((p for p in (
         "vite.config.ts", "vite.config.mts", "vite.config.js", "vite.config.mjs",
@@ -132,12 +133,21 @@ def vite_config(folder: Path, *, host: str, port: int, backend_port: int,
         for path in api_paths
     }
     server = {"host": host, "port": port, "strictPort": True, "proxy": proxies}
+    trace_plugin = (
+        "const tracePlugin = { name: 'qpyserve-trace', "
+        "transformIndexHtml() { return [{ tag: 'script', "
+        "attrs: { src: '/__qpyserve/trace.js', defer: true }, "
+        "injectTo: 'body' }]; } };\n"
+        if trace_enabled else ""
+    )
+    plugins = ", plugins: [tracePlugin]" if trace_enabled else ""
     config.write_text(
         "import { defineConfig, mergeConfig } from 'vite';\n"
         + original
+        + trace_plugin
         + "export default defineConfig(async (env) => {\n"
         + "  const base = typeof userConfig === 'function' ? await userConfig(env) : userConfig;\n"
-        + f"  return mergeConfig(base || {{}}, {{ server: {json.dumps(server)} }});\n"
+        + f"  return mergeConfig(base || {{}}, {{ server: {json.dumps(server)}{plugins} }});\n"
         + "});\n",
         encoding="utf-8",
     )

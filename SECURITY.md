@@ -13,6 +13,13 @@ if enabled. Otherwise, contact the maintainer privately before public disclosure
 
 ## Security responsibilities
 
+QPyServe Trace (0.3.0+) captures bounded, local development-only API metadata
+and can export browser errors when the developer explicitly copies a report.
+It does not store API bodies, authorization headers, cookies, or query strings.
+Route templates or browser paths may still reveal private project information;
+review reports before sharing. Never expose the development server on untrusted networks.
+Trace is disabled in production. See [Trace documentation](docs/TRACE.md).
+
 QPyServe orchestrates FastAPI and static frontend assets. It is not an
 authentication system, firewall, HTTPS proxy, rate limiter, or security scanner.
 Applications must:

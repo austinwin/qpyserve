@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qpyserve"
-version = "0.2.0"
+version = "0.3.0"
 description = "One-command FastAPI with HTML, React, Vue, and a single web origin"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -40,6 +40,7 @@ where = ["src"]
 [tool.setuptools.package-data]
 qpyserve = [
   "py.typed",
+  "_trace_client.js",
   "_starters/common/*",
   "_starters/html/frontend/*",
   "_starters/react/frontend/*",

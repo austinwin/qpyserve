@@ -26,7 +26,7 @@ Do **not** commit a PyPI API token, add one to the repo, or upload from an untru
 6. Confirm the **Upload to PyPI** job succeeds and verify the public project:
    https://pypi.org/project/qpyserve/
 7. In a fresh Python virtual environment, verify:
-   `python -m pip install qpyserve==0.1.0` and `python -c "import qpyserve; print(qpyserve.__version__)"`.
+   `python -m pip install qpyserve==<released-version>` and `python -c "import qpyserve; print(qpyserve.__version__)"`.
 
 **Note:** A pending publisher does **not** reserve a PyPI project name. If the project name
 is taken or reserved, PyPI will refuse the upload; do not assume the name is available based

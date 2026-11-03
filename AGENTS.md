@@ -25,3 +25,7 @@ QPyServe is an intentionally thin integration layer. Maintain the smallest publi
 - The `qpyserve doctor --json` output must remain machine-readable and must never execute user code.
 - Avoid new runtime dependencies, embedded AI services, custom UI components, or a proprietary backend router.
 
+
+- QPyServe Trace must remain development-only, bounded and in-memory. Never store request bodies, cookies, authorization headers or query strings.
+- Keep the trace client framework-independent and avoid adding browser build dependencies.
+- Add regression tests when changing trace injection, the Vite proxy or production defaults.

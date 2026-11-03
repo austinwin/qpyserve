@@ -94,7 +94,7 @@ def _safe_file(root: Path, file: Path) -> Path:
 
 def attach_frontend(app: FastAPI, directory: str | Path, *, live_reload: bool = False,
                     api_paths: Iterable[str] | None = None,
-                    built_vite: bool = False) -> FastAPI:
+                    built_vite: bool = False, trace_enabled: bool = False) -> FastAPI:
     """Attach last, after the caller has registered all API routes.
 
     Unknown /api paths never return the SPA index. Non-existent assets return 404.
@@ -172,8 +172,10 @@ def attach_frontend(app: FastAPI, directory: str | Path, *, live_reload: bool = 
             headers["Cache-Control"] = "public, max-age=31536000, immutable"
         if live_reload and candidate.suffix.lower() == ".html":
             html = candidate.read_text(encoding="utf-8")
-            script = _RELOAD_SCRIPT
-            html = html.replace("</body>", f"{script}</body>") if "</body>" in html else html + script
+            scripts = _RELOAD_SCRIPT
+            if trace_enabled:
+                scripts += '<script defer src="/__qpyserve/trace.js"></script>'
+            html = html.replace("</body>", f"{scripts}</body>") if "</body>" in html else html + scripts
             return HTMLResponse(html, headers=headers)
         return FileResponse(candidate, headers=headers)
 

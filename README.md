@@ -8,7 +8,7 @@
 
 QPyServe connects normal FastAPI applications with plain HTML/JavaScript, React, Vue, or other Vite frontends. It handles local startup, API proxying, frontend dependencies, and production static assets without replacing either framework.
 
-> **Pre-release note:** `qpyserve new` and `qpyserve doctor` are new in upcoming **0.2.0**. Until it is published to PyPI, install the current GitHub version with `pip install git+https://github.com/austinwin/qpyserve.git`.
+> **Version 0.3.0:** adds development-only QPyServe Trace. For the latest published version see [PyPI](https://pypi.org/project/qpyserve/).
 
 ## Create an app
 
@@ -51,6 +51,21 @@ qpyserve doctor --json  # For AI tools and CI
 ```
 
 `doctor` checks basic development prerequisites and reports actionable errors. It is **not** a security audit or a load test. It never runs arbitrary project code.
+
+## Debug frontend and backend together: QPyServe Trace
+
+Run `python main.py` and click **Trace** in the bottom-right corner of your frontend.
+It shows recent FastAPI requests (HTTP status, route template, request ID, timing and
+exception type), browser fetch failures, and JavaScript errors in one development panel.
+Select **Copy AI report** to copy structured JSON for debugging with an AI assistant.
+Trace works with plain HTML, React and Vue without changing application code.
+
+Trace is enabled automatically in local development; **disabled in production**.
+It does not transmit data to external services, record request/response bodies,
+capture authorization headers or provide production APM. A copied report should be
+reviewed before sharing. To opt out, use `run(app, trace=False)`.
+
+[Trace documentation](docs/TRACE.md) · [Interactive Trace demo](examples/trace-demo/)
 
 ## Integrate into your existing application
 
@@ -103,6 +118,7 @@ run(
     api_paths=["/ws"],     # Additional API/WebSocket proxy prefixes
     dist="dist",           # Vite output directory
     app_import="main:app", # Only for nonstandard Python entry points
+    trace=False,           # Optional: disable local development Trace panel
 )
 ```
 

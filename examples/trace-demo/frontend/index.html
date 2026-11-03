@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>QPyServe Trace demo</title>
+  <style>
+    :root { font: 16px/1.5 system-ui, sans-serif; color-scheme: dark; }
+    body { margin: 0; background: #0e1524; color: #edf4ff; min-height: 100vh;
+      display: grid; place-items: center; }
+    main { max-width: 620px; padding: 34px; margin: 24px; border: 1px solid #3a4e70;
+      border-radius: 16px; background: #17243b; }
+    p { color: #becee3; }
+    button { border-radius: 9px; border: 1px solid #638bca; background: #365a95;
+      color: white; padding: 11px 14px; font: inherit; cursor: pointer; margin: 5px; }
+    pre { overflow-wrap: anywhere; white-space: pre-wrap; background: #0e1524; padding: 14px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>QPyServe Trace demo</h1>
+    <p>Make a successful API request, intentionally return HTTP 503, or trigger a JavaScript error.
+      Open <strong>Trace</strong> at the bottom right to see diagnostics and copy a report.</p>
+    <button data-path="/api/hello">Successful API request</button>
+    <button data-path="/api/failure">HTTP 503 failure</button>
+    <button id="js-error">Throw JavaScript error</button>
+    <pre id="result" role="status" aria-live="polite">Ready</pre>
+  </main>
+  <script>
+    const output = document.querySelector('#result');
+    document.querySelectorAll('[data-path]').forEach((button) => {
+      button.addEventListener('click', async () => {
+        const response = await fetch(button.dataset.path);
+        output.textContent = 'HTTP ' + response.status + ': ' + await response.text();
+      });
+    });
+    document.querySelector('#js-error').addEventListener('click', () => {
+      throw new Error('Intentional demo error');
+    });
+  </script>
+</body>
+</html>

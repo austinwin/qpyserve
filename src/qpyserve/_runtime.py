@@ -55,6 +55,7 @@ def run(
     workers: int = 1,
     api_paths: Iterable[str] | None = None,
     build: bool | None = None,
+    trace: bool | None = None,
 ) -> None:
     """One-command runner. `--build` builds and exits; `--prod --build` builds then serves.
 
@@ -80,6 +81,10 @@ def run(
         raise ValueError("Multiple workers are supported only in production")
     if build is None:
         build = "--build" in sys.argv[1:]
+    if trace is None:
+        trace = mode == "development"
+    if mode != "development" and trace:
+        raise ValueError("QPyServe Trace is development-only; disable trace in production")
     paths = normalize_api_paths(api_paths)
 
     script = Path(sys.argv[0]).resolve()
@@ -129,6 +134,7 @@ def run(
         "live_reload": not vite and mode == "development",
         "api_paths": paths,
         "built_vite": vite and mode == "production",
+        "trace": trace,
     }
     previous = os.environ.get("QPYSERVE_RUNTIME_CONFIG")
     os.environ["QPYSERVE_RUNTIME_CONFIG"] = json.dumps(config)
@@ -139,7 +145,7 @@ def run(
             manager = package_manager(root)
             command = ensure_dependencies(root, manager)
             generated_config = vite_config(root, host=host, port=port,
-                                           backend_port=port + 1, api_paths=paths)
+                                           backend_port=port + 1, api_paths=paths, trace_enabled=trace)
             cmd = vite_command(command, manager, "--config", generated_config.name)
             kwargs = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
                       if os.name == "nt" else {"start_new_session": True})
