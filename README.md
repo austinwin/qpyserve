@@ -4,33 +4,57 @@
 [![CI](https://github.com/austinwin/qpyserve/actions/workflows/ci.yml/badge.svg)](https://github.com/austinwin/qpyserve/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-**FastAPI and a real web frontend, served from one origin with one Python command.**
+**One Python command. A real JavaScript frontend. A real FastAPI backend. One origin.**
 
-QPyServe is a small integration layer, not another web framework. Keep your normal FastAPI
-routes and your normal HTML/JavaScript, React, Vue, or other Vite frontend. QPyServe handles
-development startup, the local API proxy, and serving static assets in production.
+QPyServe connects normal FastAPI applications with plain HTML/JavaScript, React, Vue, or other Vite frontends. It handles local startup, API proxying, frontend dependencies, and production static assets without replacing either framework.
 
-> **Status:** Early alpha. See [PyPI](https://pypi.org/project/qpyserve/) for the latest published version.
-> No production throughput or security certification is claimed.
+> **Pre-release note:** `qpyserve new` and `qpyserve doctor` are new in upcoming **0.2.0**. Until it is published to PyPI, install the current GitHub version with `pip install git+https://github.com/austinwin/qpyserve.git`.
 
-## Quick start: plain HTML, no Node.js
+## Create an app
 
-Install the published package:
+Install once:
 
 ```bash
-python -m pip install qpyserve
+pip install qpyserve
 ```
 
-Create two files:
+Create a working HTML + FastAPI app (no Node.js):
 
-```text
-my-app/
-├── main.py
-└── frontend/
-    └── index.html
+```bash
+qpyserve new hello
+cd hello
+python main.py
 ```
 
-`main.py`:
+Open **http://localhost:1111**. Your UI, `/api/hello`, and `/docs` share one browser origin. Click **Call Python API** to see the frontend call your backend.
+
+Prefer React or Vue? Same Python, same command to run:
+
+```bash
+qpyserve new hello-react --template react
+# Or: qpyserve new hello-vue --template vue
+cd hello-react
+python main.py
+```
+
+React and Vue development require Node.js or a compatible JS runtime/package manager. QPyServe installs missing *project* dependencies automatically and starts Vite with hot-module replacement (HMR). It does **not** silently download Node.js.
+
+### Built for both humans and AI coding agents
+
+Every generated project is ordinary Python and frontend source code. It also includes a short `AGENTS.md` describing the API boundary, security expectations, and build commands. No proprietary UI components or code generation at runtime.
+
+For reproducible startup diagnostics:
+
+```bash
+qpyserve doctor
+qpyserve doctor --json  # For AI tools and CI
+```
+
+`doctor` checks basic development prerequisites and reports actionable errors. It is **not** a security audit or a load test. It never runs arbitrary project code.
+
+## Integrate into your existing application
+
+You don't need to use a starter. Keep your existing FastAPI application and frontend folder:
 
 ```python
 from fastapi import FastAPI
@@ -48,118 +72,59 @@ if __name__ == "__main__":
     run(app, frontend="frontend", port=1111)
 ```
 
-`frontend/index.html`:
+The frontend can call `fetch("/api/hello")` without a separate browser origin or development CORS workaround.
 
-```html
-<!doctype html>
-<html lang="en">
-  <head><meta charset="utf-8"><title>QPyServe demo</title></head>
-  <body>
-    <button id="hello">Call Python</button>
-    <pre id="result"></pre>
-    <script>
-      document.querySelector("#hello").addEventListener("click", async () => {
-        const response = await fetch("/api/hello");
-        if (!response.ok) throw new Error(`Request failed: ${response.status}`);
-        document.querySelector("#result").textContent =
-          JSON.stringify(await response.json(), null, 2);
-      });
-    </script>
-  </body>
-</html>
-```
-
-Run the entire application:
-
-```bash
-python main.py
-```
-
-Open [the frontend](http://localhost:1111/), [the JSON API](http://localhost:1111/api/hello),
-or [FastAPI documentation](http://localhost:1111/docs). Plain HTML needs no Node.js.
-
-## React, Vue, and Vite
-
-Use any ordinary Vite project as `frontend/`. Your Python backend stays the same.
-QPyServe detects Vite through `package.json`, detects npm/pnpm/Yarn/Bun,
-installs missing dependencies, and starts the dev server with API proxying and HMR.
-No custom `npm run dev` script is required.
-
-A JavaScript runtime/package manager is still required on the development machine.
-QPyServe does **not** silently install Node.js or download runtime binaries.
-
-The browser uses one origin, `http://localhost:1111`. Vite proxies `/api/*`,
-`/docs`, and other configured API paths to a loopback FastAPI server at `:1112`.
-
-Examples: [HTML counter](examples/counter-html) and [React counter](examples/counter-react).
-
-## Run, build, deploy
-
-| Command | Purpose |
+| Command | What it does |
 | --- | --- |
-| `python main.py` | Development server with reload / Vite HMR |
-| `python main.py --build` | Compile a Vite frontend and exit |
-| `python main.py --prod` | Serve prebuilt assets and FastAPI on one port |
-| `python main.py --prod --build` | Build once, then serve |
+| `python main.py` | Development mode, including reload/HMR |
+| `python main.py --build` | Build a Vite frontend and exit |
+| `python main.py --prod` | Serve built assets and FastAPI from one port |
+| `python main.py --prod --build` | Build then run production mode |
 
-Build static assets in CI and deploy the output with the Python app.
-Production does **not** require Node.js if frontend assets are already built.
+**Existing projects continue to work.** QPyServe does not change your FastAPI routes or Vue/React component model. It does not require special `npm run dev` scripts or a custom framework router.
 
-For external clients, put the app behind an HTTPS reverse proxy or managed load
-balancer. QPyServe does not implement authentication, rate limiting, queues,
-shared session storage, or production orchestration.
+See the [HTML counter](examples/counter-html) and [React counter](examples/counter-react) for more examples.
 
-### Optional configuration
+## Production
+
+Build the frontend during CI/CD with `python main.py --build`. Run `python main.py --prod` with prebuilt assets. Node.js isn't required in the production runtime for static frontends. Plain HTML/JS needs no build.
+
+Place public services behind HTTPS termination, process supervision, and application-specific authentication and rate limiting. QPyServe stays deliberately thin: it does **not** implement an auth system, database ORM, distributed sessions, a load balancer, or deployment infrastructure.
+
+Optional configuration:
 
 ```python
 run(
     app,
     frontend="frontend",
     port=1111,
-    host="127.0.0.1",       # loopback by default
-    workers=1,              # production mode only
-    api_paths=["/ws"],      # additional API / WebSocket prefixes
-    dist="dist",            # Vite output folder
-    app_import="main:app",  # only for nonstandard entrypoints
+    host="127.0.0.1",
+    workers=1,             # Production only
+    api_paths=["/ws"],     # Additional API/WebSocket proxy prefixes
+    dist="dist",           # Vite output directory
+    app_import="main:app", # Only for nonstandard Python entry points
 )
 ```
 
-Development mode binds only to loopback. Use production mode behind TLS when
-serving remote users. `api_paths` reserves custom prefixes from SPA fallback
-and proxies them to FastAPI during development. It does not create or secure endpoints.
+Development mode binds to loopback only, and Vite development must never be exposed as a public production server. External clients use the same `/api/*` routes as the browser, subject to network and authentication rules. Multi-worker applications must use shared state where appropriate.
 
-## Security boundaries
+### Security boundaries
 
-- **Frontend:** QPyServe serves known public browser asset types, rejects hidden files,
-  source maps, common credentials, and paths or symlinks escaping the static root.
-  Its static responses include `X-Content-Type-Options: nosniff`.
-- **API:** FastAPI owns authentication, authorization, input validation, CORS, and
-  session security. **Your API routes are public unless you protect them.**
-- **Infrastructure:** Configure HTTPS, trusted proxy headers, firewall rules,
-  rate limits, monitored deployments, and external shared state as appropriate.
-- **Secrets:** Keep private data entirely outside the served frontend directory.
-  A public `data.json` file remains public even when the file server is secure.
-
-QPyServe does not impose one Content Security Policy on every frontend; configure a
-policy matching your app's scripts, maps, fonts, and integrations.
-See [SECURITY.md](SECURITY.md) for deployment and vulnerability-reporting guidance.
-
-The counter demos use in-memory state **for illustration only**. Multiple workers
-do not share Python globals.
-
-## Who owns what?
-
-| Concern | Owner |
+| Area | Responsibility |
 | --- | --- |
-| Startup, Vite proxy, static assets and basic reload | QPyServe |
-| HTTP/WebSocket APIs, authentication, databases | FastAPI / your app |
-| Frontend compilation and HMR | Vite |
-| HTTPS, scaling, monitoring, caching, load balancing | Deployment platform |
+| QPyServe | Static file serving, path protection, local Vite proxy, reload/build orchestration |
+| FastAPI / your code | Authorization, validation, authentication, CORS, sessions and business logic |
+| Deployment platform | HTTPS, monitoring, rate limiting, backups, scaling and load balancing |
 
-Next.js SSR, automatic infrastructure provisioning, and distributed WebSocket
-fan-out are deliberately outside scope.
+QPyServe blocks common private/development files and escaping symlinks when serving static assets, but **anything intentionally placed in a public frontend file can be downloaded**. Never place credentials in the frontend; API routes are public unless explicitly protected. A security review of your application is still necessary. See [SECURITY.md](SECURITY.md).
 
-## Contributing and verification
+## Scope and performance
+
+QPyServe does not claim to be faster than FastAPI or competing frameworks. API and browser performance depend on your application, dependencies, workload, deployment, and caching. It is designed to avoid adding unnecessary abstractions. Benchmark representative workloads before claiming a particular concurrency target.
+
+Supported frontends: plain HTML/JS, React, Vue, and other static Vite projects. Server-rendered Next.js, distributed WebSocket fan-out, and automatic cloud provisioning remain outside scope.
+
+## Contributing
 
 ```bash
 python -m pip install -e '.[dev]'
@@ -168,10 +133,4 @@ python -m pytest -q
 python -m build
 ```
 
-GitHub CI covers Python 3.10, 3.12, 3.13 on Linux, Python 3.12 on Windows,
-and a React/Vite startup smoke test.
-Read [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), and
-[RELEASING.md](RELEASING.md) for project guidance.
-
-QPyServe is MIT-licensed. It does not accelerate backend queries or guarantee a
-specific concurrency level. Benchmark the deployed app before making performance claims.
+Read [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), and [RELEASING.md](RELEASING.md). MIT-licensed.

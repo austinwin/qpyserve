@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qpyserve"
-version = "0.1.1"
-description = "Run FastAPI with HTML, React, or Vue on one host using one Python command"
+version = "0.2.0"
+description = "One-command FastAPI with HTML, React, Vue, and a single web origin"
 readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }
@@ -27,12 +27,26 @@ dependencies = ["fastapi>=0.110,<1", "uvicorn[standard]>=0.30,<1"]
 test = ["pytest>=8", "httpx>=0.27", "build>=1.2"]
 dev = ["pytest>=8", "httpx>=0.27", "build>=1.2", "ruff>=0.9,<1"]
 
+[project.scripts]
+qpyserve = "qpyserve._cli:main"
+
 [project.urls]
 Repository = "https://github.com/austinwin/qpyserve"
 Issues = "https://github.com/austinwin/qpyserve/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+qpyserve = [
+  "py.typed",
+  "_starters/common/*",
+  "_starters/html/frontend/*",
+  "_starters/react/frontend/*",
+  "_starters/react/frontend/src/*",
+  "_starters/vue/frontend/*",
+  "_starters/vue/frontend/src/*",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

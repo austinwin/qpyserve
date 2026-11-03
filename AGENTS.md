@@ -19,3 +19,9 @@ QPyServe is an intentionally thin integration layer. Maintain the smallest publi
 - Development servers must remain bound to loopback; production API authentication belongs to FastAPI.
 - Run Ruff lint checks and regression tests for security, process, and routing changes.
 - Never treat passing tests as proof of security certification or 1,000-user performance.
+
+- Keep the public `qpyserve new` command template-based and non-destructive.
+- Keep project templates in `src/qpyserve/_starters/` and include them in built distributions.
+- The `qpyserve doctor --json` output must remain machine-readable and must never execute user code.
+- Avoid new runtime dependencies, embedded AI services, custom UI components, or a proprietary backend router.
+

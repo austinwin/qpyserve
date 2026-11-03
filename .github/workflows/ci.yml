@@ -62,3 +62,45 @@ jobs:
         if: always()
         run: |
           if test -f /tmp/qpyserve.pid; then kill $(cat /tmp/qpyserve.pid) || true; fi
+
+  generated-starters:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -e .
+      - name: Generate all starter types and verify doctor
+        run: |
+          qpyserve new /tmp/qps-html
+          qpyserve new /tmp/qps-react --template react
+          qpyserve new /tmp/qps-vue --template vue
+          qpyserve doctor /tmp/qps-html --json
+          qpyserve doctor /tmp/qps-react --json
+          qpyserve doctor /tmp/qps-vue --json
+      - name: Compile generated React and Vue projects
+        run: |
+          python /tmp/qps-react/main.py --build
+          python /tmp/qps-vue/main.py --build
+          test -f /tmp/qps-react/frontend/dist/index.html
+          test -f /tmp/qps-vue/frontend/dist/index.html
+      - name: Confirm starter resources exist in wheel
+        run: |
+          python -m pip install build
+          python -m build
+          python - <<'PY'
+          import glob
+          import zipfile
+          wheel = glob.glob("dist/*.whl")[0]
+          with zipfile.ZipFile(wheel) as archive:
+              names = set(archive.namelist())
+          for template in ("html", "react", "vue"):
+              assert f"qpyserve/_starters/{template}/frontend/index.html" in names
+          PY
+
