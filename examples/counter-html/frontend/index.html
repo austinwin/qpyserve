@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>qpyserve • HTML Counter</title>
+  <style>
+    body { margin: 0; min-height: 100vh; display: grid; place-items: center; font-family: system-ui, sans-serif; background: #f4f7fb; color: #142338; }
+    main { background: white; border: 1px solid #dbe3ed; border-radius: 16px; padding: 32px 40px; text-align: center; box-shadow: 0 6px 25px #1829490d; }
+    #count { font-size: 64px; font-weight: 750; margin: 12px; }
+    button { background: #175cd3; color: white; border: 0; border-radius: 8px; padding: 11px 16px; font: inherit; cursor: pointer; }
+    button + button { margin-left: 8px; background: #52657c; }
+    small { color: #53657a; display: block; margin-top: 18px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Counter</h1>
+    <div id="count" aria-live="polite">…</div>
+    <button id="increment">+1</button><button id="reset">Reset</button>
+    <small id="status">Python API at /api/count</small>
+  </main>
+  <script>
+    const count = document.querySelector('#count');
+    const status = document.querySelector('#status');
+    async function call(path, method = 'GET') {
+      try {
+        const response = await fetch(path, { method });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data = await response.json();
+        count.textContent = data.count;
+        status.textContent = 'Python API at /api/count';
+      } catch (error) {
+        status.textContent = `Request failed: ${error.message}`;
+      }
+    }
+    document.querySelector('#increment').onclick = () => call('/api/count/increment', 'POST');
+    document.querySelector('#reset').onclick = () => call('/api/count/reset', 'POST');
+    call('/api/count');
+  </script>
+</body>
+</html>
