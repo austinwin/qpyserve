@@ -34,6 +34,7 @@ def test_spa_history_fallback_and_missing_assets(tmp_path):
     assert "Hello" in client.get("/facilities/123", headers={"accept": "text/html"}).text
     assert client.get("/missing.js").status_code == 404
     assert client.get("/api/missing", headers={"accept": "text/html"}).status_code == 404
+    assert client.post("/api/missing").status_code == 404
     assert client.get("/apiary", headers={"accept": "application/json"}).status_code == 404
     assert client.get("/../other.txt").status_code == 404
 

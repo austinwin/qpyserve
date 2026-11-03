@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
@@ -57,6 +56,15 @@ def attach_frontend(app: FastAPI, directory: str | Path, *, live_reload: bool = 
         @app.get("/__qpyserve/version", include_in_schema=False)
         def qpyserve_version() -> dict[str, int]:
             return {"version": _version(root)}
+
+    # Keep missing API paths distinct from static frontend routes, for all methods.
+    @app.api_route(
+        "/api/{unmatched_path:path}",
+        methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"],
+        include_in_schema=False,
+    )
+    async def unknown_api(unmatched_path: str):
+        raise HTTPException(404, "API endpoint not found")
 
     @app.get("/{asset_path:path}", include_in_schema=False)
     async def frontend_asset(asset_path: str, request: Request):
