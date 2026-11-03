@@ -4,11 +4,10 @@ from __future__ import annotations
 
 import argparse
 from importlib.resources import files
-from importlib.resources.abc import Traversable
 import json
 from pathlib import Path
 import shutil
-from typing import Sequence
+from typing import Any, Sequence
 
 from . import __version__
 from ._tooling import _manager_command, has_vite, package_manager
@@ -17,7 +16,7 @@ from ._tooling import _manager_command, has_vite, package_manager
 _STARTER_NAMES = ("html", "react", "vue")
 
 
-def _copy_template(source: Traversable, destination: Path) -> None:
+def _copy_template(source: Any, destination: Path) -> None:
     """Copy files from a packaged template, including zipped distributions."""
     for child in source.iterdir():
         target = destination / child.name
