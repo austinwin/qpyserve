@@ -3,6 +3,7 @@ name: Publish to PyPI
 on:
   workflow_dispatch:
   push:
+    branches: [main]
     tags:
       - "v[0-9]*"
 
@@ -11,7 +12,12 @@ permissions:
 
 jobs:
   build:
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'push' &&
+       github.ref == 'refs/heads/main' &&
+       github.event.head_commit.message == 'release: publish qpyserve v0.3.0')
     name: Test and build distributions
     runs-on: ubuntu-latest
     steps:
@@ -39,11 +45,21 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
+      - name: Validate development Trace JavaScript
+        run: node --check src/qpyserve/_trace_client.js
       - name: Verify React/Vite example builds
         working-directory: examples/counter-react/frontend
         run: npm install --no-audit --no-fund && npm run build
       - name: Build wheel and source distribution
         run: python -m build
+      - name: Verify trace client is included in release wheel
+        run: |
+          python - <<'PY'
+          from glob import glob
+          from zipfile import ZipFile
+          with ZipFile(glob("dist/*.whl")[0]) as wheel:
+              assert "qpyserve/_trace_client.js" in wheel.namelist()
+          PY
       - name: Validate package metadata
         run: python -m twine check dist/*
       - uses: actions/upload-artifact@v4
