@@ -1,70 +1,35 @@
-"""Single-command development and production runner for FastAPI + web frontends."""
+"""Run a real FastAPI application with any HTML or Vite-based frontend."""
 
 from __future__ import annotations
 
 import json
 import os
 from pathlib import Path
-import shutil
 import signal
 import subprocess
 import sys
-from typing import Literal
+from typing import Iterable, Literal
 
 from fastapi import FastAPI
 import uvicorn
 
+from ._tooling import (
+    build_frontend, ensure_dependencies, has_vite, normalize_api_paths,
+    package_manager, vite_command, vite_config,
+)
+
 Mode = Literal["development", "production"]
 
-
-def _has_vite(folder: Path) -> bool:
-    manifest = folder / "package.json"
-    if not manifest.is_file():
-        return False
-    data = json.loads(manifest.read_text(encoding="utf-8"))
-    dependencies = {**data.get("dependencies", {}), **data.get("devDependencies", {})}
-    return "vite" in dependencies
-
-
-def _npm_install(folder: Path) -> str:
-    npm = shutil.which("npm")
-    if not npm:
-        raise RuntimeError("This frontend uses Vite; install Node.js and npm first.")
-    if not (folder / "node_modules" / "vite").is_dir():
-        command = [npm, "ci"] if (folder / "package-lock.json").is_file() else [npm, "install"]
-        print(f"[qpyserve] Installing frontend packages: {' '.join(command)}", flush=True)
-        subprocess.run(command, cwd=folder, check=True)
-    return npm
-
-
-def _vite_config(folder: Path, *, host: str, port: int, backend_port: int) -> Path:
-    config = folder / ".qpyserve.vite.config.mjs"
-    existing = next((p for p in ("vite.config.ts", "vite.config.mts", "vite.config.js", "vite.config.mjs") if (folder / p).is_file()), None)
-    original = f"import userConfig from './{existing}';\n" if existing else "const userConfig = {};\n"
-    # JSON encoding protects values passed into the generated JavaScript.
-    content = (
-        "import { defineConfig, mergeConfig } from 'vite';\n"
-        + original
-        + "export default defineConfig(async (env) => {\n"
-        + "  const base = typeof userConfig === 'function' ? await userConfig(env) : userConfig;\n"
-        + "  return mergeConfig(base || {}, { server: {\n"
-        + f"    host: {json.dumps(host)}, port: {port}, strictPort: true,\n"
-        + "    proxy: {\n"
-        + f"      '^/api(?:/|$)': {{ target: 'http://127.0.0.1:{backend_port}', changeOrigin: true, ws: true }},\n"
-        + f"      '^/(docs|redoc|openapi.json|__qpyserve)(?:/|$)': {{ target: 'http://127.0.0.1:{backend_port}', changeOrigin: true }}\n"
-        + "    }\n"
-        + "  }});\n"
-        + "});\n"
-    )
-    config.write_text(content, encoding="utf-8")
-    return config
+# Retain private aliases for older users/tests; these are not public API.
+_has_vite = has_vite
+_vite_config = vite_config
 
 
 def _stop_process(process: subprocess.Popen) -> None:
     if process.poll() is not None:
         return
     if os.name == "nt":
-        # npm.cmd creates a child Node.js process; stop its full tree.
+        # npm/pnpm/yarn/bun may create child processes on Windows.
         subprocess.run(["taskkill", "/PID", str(process.pid), "/T", "/F"],
                        stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=False)
     else:
@@ -88,11 +53,13 @@ def run(
     app_import: str | None = None,
     dist: str = "dist",
     workers: int = 1,
+    api_paths: Iterable[str] | None = None,
+    build: bool | None = None,
 ) -> None:
-    """Run FastAPI and an optional static/Vite frontend under one origin.
+    """One-command runner. `--build` builds and exits; `--prod --build` builds then serves.
 
-    Use `python main.py` for dev, or `python main.py --prod` for production.
-    A Vite project is detected by its package.json; HTML-only sites need no Node.
+    Plain HTML requires Python only. React/Vue require a Vite project and its selected
+    JS package manager, installed automatically when frontend packages are missing.
     """
     if not isinstance(app, FastAPI):
         raise TypeError("run() requires a FastAPI application")
@@ -106,6 +73,9 @@ def run(
         raise ValueError("mode must be 'development' or 'production'")
     if mode == "development" and workers > 1:
         raise ValueError("Multiple workers are supported only in production")
+    if build is None:
+        build = "--build" in sys.argv[1:]
+    paths = normalize_api_paths(api_paths)
 
     script = Path(sys.argv[0]).resolve()
     project_dir = script.parent
@@ -115,32 +85,42 @@ def run(
     root = root.resolve()
     if not root.is_dir():
         raise FileNotFoundError(f"Frontend directory not found: {root}")
+    if not dist or Path(dist).is_absolute() or ".." in Path(dist).parts:
+        raise ValueError("dist must be a relative frontend build directory")
 
-    if app_import is None:
-        main_globals = vars(sys.modules["__main__"])
-        app_var = next((key for key, value in main_globals.items() if value is app and key.isidentifier()), None)
-        if not app_var or not script.stem.isidentifier():
-            raise ValueError("Cannot locate FastAPI app. Pass app_import='main:app' explicitly.")
-        app_import = f"{script.stem}:{app_var}"
-
-    vite = _has_vite(root)
+    vite = has_vite(root)
     static_directory = root / dist if vite else root
+    if build:
+        if vite:
+            build_frontend(root)
+        else:
+            print("[qpyserve] Plain HTML requires no build", flush=True)
+        if mode != "production":
+            return
     if mode == "production" and not (static_directory / "index.html").is_file():
         raise FileNotFoundError(
             f"Built frontend missing: {static_directory / 'index.html'}. "
-            "Run 'npm run build' in the frontend folder before production."
+            "Use 'python main.py --prod --build' to build and launch, "
+            "or build once in CI and run 'python main.py --prod'."
         )
     if not vite and not (root / "index.html").is_file():
         raise FileNotFoundError(f"Plain HTML frontend must contain {root / 'index.html'}")
-
     if vite and mode == "development" and port == 65535:
-        raise ValueError("Vite development needs port and port+1; choose port <= 65534")
+        raise ValueError("Vite dev requires port and port+1; choose port <= 65534")
+
+    if app_import is None:
+        main_globals = vars(sys.modules["__main__"])
+        app_var = next((k for k, v in main_globals.items() if v is app and k.isidentifier()), None)
+        if not app_var or not script.stem.isidentifier():
+            raise ValueError("Cannot locate FastAPI app. Pass app_import='main:app' explicitly.")
+        app_import = f"{script.stem}:{app_var}"
 
     config = {
         "app_import": app_import,
         "serve_frontend": not (vite and mode == "development"),
         "static_directory": str(static_directory),
         "live_reload": not vite and mode == "development",
+        "api_paths": paths,
     }
     previous = os.environ.get("QPYSERVE_RUNTIME_CONFIG")
     os.environ["QPYSERVE_RUNTIME_CONFIG"] = json.dumps(config)
@@ -148,14 +128,18 @@ def run(
     generated_config: Path | None = None
     try:
         if vite and mode == "development":
-            npm = _npm_install(root)
-            generated_config = _vite_config(root, host=host, port=port, backend_port=port + 1)
-            cmd = [npm, "run", "dev", "--", "--config", generated_config.name]
-            kwargs = {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP} if os.name == "nt" else {"start_new_session": True}
+            manager = package_manager(root)
+            command = ensure_dependencies(root, manager)
+            generated_config = vite_config(root, host=host, port=port,
+                                           backend_port=port + 1, api_paths=paths)
+            cmd = vite_command(command, manager, "--config", generated_config.name)
+            kwargs = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+                      if os.name == "nt" else {"start_new_session": True})
             vite_process = subprocess.Popen(cmd, cwd=root, **kwargs)
-            print(f"[qpyserve] http://localhost:{port} (Vite) -> /api on localhost:{port+1}", flush=True)
+            print(f"[qpyserve] http://localhost:{port} (Vite) /api -> localhost:{port + 1}", flush=True)
             uvicorn.run("qpyserve._entry:create_app", factory=True, host="127.0.0.1",
                         port=port + 1, reload=True, reload_dirs=[str(project_dir)],
+                        reload_includes=["*.py"],
                         reload_excludes=["node_modules", "dist", ".qpyserve.vite.config.mjs"])
         else:
             print(f"[qpyserve] http://localhost:{port} ({mode})", flush=True)
@@ -163,6 +147,7 @@ def run(
                         port=port, reload=(mode == "development"),
                         workers=workers if mode == "production" else None,
                         reload_dirs=[str(project_dir)] if mode == "development" else None,
+                        reload_includes=["*.py"] if mode == "development" else None,
                         reload_excludes=["node_modules", "dist"] if mode == "development" else None)
     finally:
         if vite_process is not None:

@@ -63,3 +63,42 @@ def test_vite_detection_and_config(tmp_path):
 def test_missing_index(tmp_path):
     with pytest.raises(FileNotFoundError):
         attach_frontend(FastAPI(), tmp_path)
+
+
+def test_custom_api_path_never_falls_back_to_html(tmp_path):
+    (tmp_path / "index.html").write_text("<html>App</html>")
+    app = FastAPI()
+
+    @app.get("/ws/status")
+    def status():
+        return {"status": "ready"}
+
+    attach_frontend(app, tmp_path, api_paths=["/ws", "/reports"])
+    client = TestClient(app)
+    assert client.get("/ws/status").json() == {"status": "ready"}
+    assert client.get("/ws/missing", headers={"accept": "text/html"}).status_code == 404
+    assert client.get("/reports/missing", headers={"accept": "text/html"}).status_code == 404
+    assert "App" in client.get("/my-page", headers={"accept": "text/html"}).text
+
+
+def test_version_scan_is_cached_for_multiple_clients(tmp_path, monkeypatch):
+    (tmp_path / "index.html").write_text("<html>Test</html>")
+    app = FastAPI()
+    from qpyserve import _frontend
+    scans = []
+    monkeypatch.setattr(_frontend, "_version", lambda _: scans.append(1) or 42)
+    attach_frontend(app, tmp_path, live_reload=True)
+    client = TestClient(app)
+    assert client.get("/__qpyserve/version").json()["version"] == 42
+    assert client.get("/__qpyserve/version").json()["version"] == 42
+    assert scans == [1]
+
+
+def test_hidden_and_project_source_files_not_public(tmp_path):
+    client = client_with_site(tmp_path)
+    for name in (".env", "package.json", "vite.config.js", "app.py", "node_modules/secret.js"):
+        candidate = tmp_path / name
+        candidate.parent.mkdir(parents=True, exist_ok=True)
+        candidate.write_text("SECRET")
+        assert client.get("/" + name).status_code == 404
+    assert client.get("/").headers["cache-control"] == "no-cache"

@@ -3,6 +3,11 @@
 from __future__ import annotations
 
 from pathlib import Path
+import time
+from threading import Lock
+from typing import Iterable
+
+from ._tooling import normalize_api_paths
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, HTMLResponse
@@ -39,11 +44,13 @@ def _version(folder: Path) -> int:
     return latest
 
 
-def attach_frontend(app: FastAPI, directory: str | Path, *, live_reload: bool = False) -> FastAPI:
+def attach_frontend(app: FastAPI, directory: str | Path, *, live_reload: bool = False,
+                    api_paths: Iterable[str] | None = None) -> FastAPI:
     """Attach last, after the caller has registered all API routes.
 
     Unknown /api paths never return the SPA index. Non-existent assets return 404.
     """
+    reserved_paths = normalize_api_paths(api_paths)
     root = Path(directory).resolve()
     if not (root / "index.html").is_file():
         raise FileNotFoundError(f"No index.html found in {root}")
@@ -52,10 +59,18 @@ def attach_frontend(app: FastAPI, directory: str | Path, *, live_reload: bool = 
     def qpyserve_health() -> dict[str, str]:
         return {"status": "ok"}
 
+    last_scan = [0.0, 0]
+    scan_lock = Lock()
+
     if live_reload:
         @app.get("/__qpyserve/version", include_in_schema=False)
         def qpyserve_version() -> dict[str, int]:
-            return {"version": _version(root)}
+            # Multiple open tabs share one scan per second, not one scan per request.
+            with scan_lock:
+                now = time.monotonic()
+                if now - last_scan[0] >= 0.75:
+                    last_scan[:] = [now, _version(root)]
+                return {"version": last_scan[1]}
 
     # Keep missing API paths distinct from static frontend routes, for all methods.
     @app.api_route(
@@ -68,7 +83,20 @@ def attach_frontend(app: FastAPI, directory: str | Path, *, live_reload: bool = 
 
     @app.get("/{asset_path:path}", include_in_schema=False)
     async def frontend_asset(asset_path: str, request: Request):
-        if asset_path.startswith(("api/", "__qpyserve/")) or asset_path in {"api", "__qpyserve"}:
+        requested = "/" + asset_path
+        if any(requested == prefix or requested.startswith(prefix + "/")
+               for prefix in reserved_paths):
+            raise HTTPException(404, "Not found")
+
+        parts = Path(asset_path).parts
+        # A plain HTML frontend is a directory, not an invitation to publish its
+        # .env, package manager files, Python sources, or development config.
+        if any(part.startswith(".") for part in parts) or any(
+            part in {"node_modules", "__pycache__", "package.json", "package-lock.json",
+                     "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"}
+            or part.startswith("vite.config.") or part.endswith((".py", ".pyc"))
+            for part in parts
+        ):
             raise HTTPException(404, "Not found")
 
         candidate = (root / asset_path).resolve()
@@ -83,7 +111,9 @@ def attach_frontend(app: FastAPI, directory: str | Path, *, live_reload: bool = 
             else:
                 raise HTTPException(404, "Not found")
 
-        headers = {"Cache-Control": "no-store"} if live_reload else {}
+        # A stale SPA entrypoint often causes the "hard refresh required" symptom.
+        headers = ({"Cache-Control": "no-store"} if live_reload else
+                   {"Cache-Control": "no-cache"} if candidate.suffix.lower() == ".html" else {})
         if live_reload and candidate.suffix.lower() == ".html":
             html = candidate.read_text(encoding="utf-8")
             script = _RELOAD_SCRIPT

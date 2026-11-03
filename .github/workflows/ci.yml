@@ -6,10 +6,18 @@ on:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        python-version: ['3.10', '3.12', '3.13']
+        include:
+          - os: ubuntu-latest
+            python-version: '3.10'
+          - os: ubuntu-latest
+            python-version: '3.12'
+          - os: ubuntu-latest
+            python-version: '3.13'
+          - os: windows-latest
+            python-version: '3.12'
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -19,12 +27,34 @@ jobs:
       - run: python -m pytest -q
       - run: python -m build
 
-  react-build:
+  react-smoke:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - run: npm install && npm run build
-        working-directory: examples/counter-react/frontend
+      - run: python -m pip install -e .
+      - name: Start React and FastAPI with one Python command
+        working-directory: examples/counter-react
+        run: |
+          python main.py > /tmp/qpyserve.log 2>&1 &
+          echo $! > /tmp/qpyserve.pid
+          for i in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:1111/api/count > /tmp/api.json && curl --fail --silent http://127.0.0.1:1111/ > /tmp/index.html; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/qpyserve.log
+          exit 1
+      - name: Build React frontend without manual npm command
+        working-directory: examples/counter-react
+        run: python main.py --build
+      - name: Stop local processes
+        if: always()
+        run: |
+          if test -f /tmp/qpyserve.pid; then kill $(cat /tmp/qpyserve.pid) || true; fi
