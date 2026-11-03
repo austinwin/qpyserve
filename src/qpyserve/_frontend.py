@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 import time
 from threading import Lock
 from typing import Iterable
@@ -44,15 +45,51 @@ def _version(folder: Path) -> int:
     return latest
 
 
+_PRIVATE_FILENAMES = {
+    "package.json", "package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml",
+    "yarn.lock", "bun.lock", "bun.lockb", "id_rsa", "id_ed25519",
+    "credentials.json", "secrets.json",
+}
+_PRIVATE_SUFFIXES = (".py", ".pyc", ".pem", ".key", ".p12", ".pfx", ".sqlite", ".sqlite3", ".db")
+_FINGERPRINTED_ASSET = re.compile(r"-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$")
+
+
+def _blocked(parts: tuple[str, ...]) -> bool:
+    """Do not serve development files or credentials under a public directory."""
+    for part in parts:
+        name = part.lower()
+        if (name.startswith(".") or name in _PRIVATE_FILENAMES
+                or name in {"node_modules", "__pycache__"}
+                or name.startswith("vite.config.")
+                or name.endswith(_PRIVATE_SUFFIXES)):
+            return True
+    return False
+
+
+def _safe_file(root: Path, file: Path) -> Path:
+    """Resolve every final target, including symlinks used by directory index files."""
+    target = file.resolve()
+    if not target.is_relative_to(root) or _blocked(target.relative_to(root).parts):
+        raise HTTPException(404, "Not found")
+    return target
+
+
 def attach_frontend(app: FastAPI, directory: str | Path, *, live_reload: bool = False,
-                    api_paths: Iterable[str] | None = None) -> FastAPI:
+                    api_paths: Iterable[str] | None = None,
+                    built_vite: bool = False) -> FastAPI:
     """Attach last, after the caller has registered all API routes.
 
     Unknown /api paths never return the SPA index. Non-existent assets return 404.
     """
     reserved_paths = normalize_api_paths(api_paths)
     root = Path(directory).resolve()
-    if not (root / "index.html").is_file():
+    # Do not trust an index.html symlink pointing outside the public directory
+    # (or at an internal secret). This also protects SPA history fallbacks.
+    try:
+        entrypoint = _safe_file(root, root / "index.html")
+    except HTTPException as exc:
+        raise ValueError("Frontend index.html must be a public file inside its directory") from exc
+    if not entrypoint.is_file():
         raise FileNotFoundError(f"No index.html found in {root}")
 
     @app.get("/__qpyserve/health", include_in_schema=False)
@@ -89,31 +126,29 @@ def attach_frontend(app: FastAPI, directory: str | Path, *, live_reload: bool = 
             raise HTTPException(404, "Not found")
 
         parts = Path(asset_path).parts
-        # A plain HTML frontend is a directory, not an invitation to publish its
-        # .env, package manager files, Python sources, or development config.
-        if any(part.startswith(".") for part in parts) or any(
-            part in {"node_modules", "__pycache__", "package.json", "package-lock.json",
-                     "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock", "bun.lock", "bun.lockb"}
-            or part.startswith("vite.config.") or part.endswith((".py", ".pyc"))
-            for part in parts
-        ):
+        if _blocked(parts):
             raise HTTPException(404, "Not found")
 
-        candidate = (root / asset_path).resolve()
-        if not candidate.is_relative_to(root):
-            raise HTTPException(404, "Not found")
+        candidate = _safe_file(root, root / asset_path)
         if candidate.is_dir():
-            candidate = candidate / "index.html"
+            candidate = _safe_file(root, candidate / "index.html")
         if not candidate.is_file():
             # Single-page app history fallback, but not for missing JS/CSS/images.
             if "." not in Path(asset_path).name and "text/html" in request.headers.get("accept", ""):
-                candidate = root / "index.html"
+                candidate = entrypoint
             else:
                 raise HTTPException(404, "Not found")
 
         # A stale SPA entrypoint often causes the "hard refresh required" symptom.
-        headers = ({"Cache-Control": "no-store"} if live_reload else
-                   {"Cache-Control": "no-cache"} if candidate.suffix.lower() == ".html" else {})
+        if live_reload:
+            headers = {"Cache-Control": "no-store"}
+        elif candidate.suffix.lower() == ".html":
+            headers = {"Cache-Control": "no-cache"}
+        elif (built_vite and parts[:1] == ("assets",)
+              and _FINGERPRINTED_ASSET.search(candidate.name)):
+            headers = {"Cache-Control": "public, max-age=31536000, immutable"}
+        else:
+            headers = {}
         if live_reload and candidate.suffix.lower() == ".html":
             html = candidate.read_text(encoding="utf-8")
             script = _RELOAD_SCRIPT

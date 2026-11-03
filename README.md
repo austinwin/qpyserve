@@ -4,7 +4,7 @@
 
 QPyServe is a thin bridge, not a new web framework. Write normal FastAPI endpoints and use plain HTML/JS, React, Vue, or another Vite frontend. QPyServe handles local startup, frontend dependencies, API proxying, hot reload, and static production serving.
 
-> **Status:** Early alpha. Not yet load-tested or security-audited. Multiple workers do not guarantee performance for 1,000 concurrent users.
+> **Status:** Early alpha (0.1.1 development). Not yet load-tested or security-audited. Multiple workers do not guarantee performance for 1,000 concurrent users.
 
 ## Installation
 
@@ -107,7 +107,7 @@ Bind `host='0.0.0.0'` only when you intentionally want to expose the service ove
 - **Vite:** React/Vue/JS build, HMR, frontend plugins.
 - **Deployment platform:** HTTPS, worker replicas, monitoring, database, caches, queues, backups.
 
-Vite builds are static SPAs; Next.js server-side rendering, distributed WebSocket fan-out, automatic Kubernetes provisioning, and shared-memory magic are not provided. The HTML file server excludes hidden files, package manager manifests, and Python sources; don't put secrets in a public frontend directory.
+Vite builds are static SPAs; Next.js server-side rendering, distributed WebSocket fan-out, automatic Kubernetes provisioning, and shared-memory magic are not provided. The HTML file server excludes hidden files, package manifests, Python sources, common key/credential files, and symlinks that lead outside the frontend directory. In production, Vite content-hashed assets under `/assets/` receive long-lived immutable caching while HTML is revalidated. Keep private data outside your frontend directory; only intentionally public content belongs there.
 
 ## Contributing and verification
 
@@ -118,3 +118,7 @@ python -m build
 ```
 
 Check [AGENTS.md](AGENTS.md) for AI-assisted contributions and [RELEASING.md](RELEASING.md) for PyPI publishing. MIT License.
+
+## Performance and security claims
+
+QPyServe primarily orchestrates FastAPI and Vite. It cannot make backend queries, databases, or upstream APIs faster on its own. Test representative workloads before making concurrency or speed claims. The package does not add authentication, authorization, rate limiting, or HTTPS; configure those with FastAPI and your hosting platform.

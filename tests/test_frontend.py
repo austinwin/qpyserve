@@ -102,3 +102,67 @@ def test_hidden_and_project_source_files_not_public(tmp_path):
         candidate.write_text("SECRET")
         assert client.get("/" + name).status_code == 404
     assert client.get("/").headers["cache-control"] == "no-cache"
+
+
+def test_symlink_to_hidden_file_is_not_exposed(tmp_path):
+    client = client_with_site(tmp_path)
+    secret = tmp_path / ".env"
+    secret.write_text("TOKEN=secret")
+    alias = tmp_path / "public.txt"
+    try:
+        alias.symlink_to(secret)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlink creation unavailable")
+    assert client.get("/public.txt").status_code == 404
+
+
+def test_directory_index_symlink_escape_is_blocked(tmp_path):
+    site = tmp_path / "site"
+    site.mkdir()
+    (site / "index.html").write_text("<html>Home</html>")
+    outside = tmp_path / "private.html"
+    outside.write_text("PRIVATE")
+    child = site / "subdir"
+    child.mkdir()
+    try:
+        (child / "index.html").symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlink creation unavailable")
+    client = TestClient(attach_frontend(FastAPI(), site))
+    assert client.get("/subdir/").status_code == 404
+    assert "PRIVATE" not in client.get("/subdir/").text
+
+
+def test_entrypoint_symlink_to_outside_is_rejected(tmp_path):
+    site = tmp_path / "site"
+    site.mkdir()
+    secret = tmp_path / "secret.html"
+    secret.write_text("SECRET")
+    try:
+        (site / "index.html").symlink_to(secret)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlink creation unavailable")
+    with pytest.raises(ValueError, match="index.html"):
+        attach_frontend(FastAPI(), site)
+
+
+def test_plain_frontend_blocks_private_key_files(tmp_path):
+    client = client_with_site(tmp_path)
+    for name in ("private.pem", "client.key", "credentials.json", "id_ed25519", "data.sqlite"):
+        (tmp_path / name).write_text("PRIVATE")
+        assert client.get("/" + name).status_code == 404
+
+
+def test_vite_fingerprinted_assets_are_immutable_in_production(tmp_path):
+    (tmp_path / "index.html").write_text("<html>App</html>")
+    assets = tmp_path / "assets"
+    assets.mkdir()
+    (assets / "index-B3x7kmP2.js").write_text("console.log('app')")
+    (assets / "index.js").write_text("console.log('plain')")
+    app = attach_frontend(FastAPI(), tmp_path, built_vite=True)
+    client = TestClient(app)
+    assert client.get("/").headers["cache-control"] == "no-cache"
+    assert client.get("/assets/index-B3x7kmP2.js").headers["cache-control"] == "public, max-age=31536000, immutable"
+    assert "immutable" not in client.get("/assets/index.js").headers.get("cache-control", "")
+    dev = TestClient(attach_frontend(FastAPI(), tmp_path, live_reload=True, built_vite=True))
+    assert dev.get("/assets/index-B3x7kmP2.js").headers["cache-control"] == "no-store"

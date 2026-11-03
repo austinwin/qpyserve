@@ -121,6 +121,7 @@ def run(
         "static_directory": str(static_directory),
         "live_reload": not vite and mode == "development",
         "api_paths": paths,
+        "built_vite": vite and mode == "production",
     }
     previous = os.environ.get("QPYSERVE_RUNTIME_CONFIG")
     os.environ["QPYSERVE_RUNTIME_CONFIG"] = json.dumps(config)

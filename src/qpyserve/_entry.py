@@ -27,7 +27,8 @@ def create_app() -> FastAPI:
         raise TypeError(f"{config['app_import']} does not resolve to a FastAPI app")
     if config["serve_frontend"]:
         attach_frontend(app, config["static_directory"], live_reload=config["live_reload"],
-                        api_paths=config.get("api_paths"))
+                        api_paths=config.get("api_paths"),
+                        built_vite=config.get("built_vite", False))
     else:
         @app.get("/__qpyserve/health", include_in_schema=False)
         def qpyserve_health() -> dict[str, str]:
