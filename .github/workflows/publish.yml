@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   build:
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     name: Test and build distributions
     runs-on: ubuntu-latest
     steps:

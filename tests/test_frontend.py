@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
 import pytest
 
@@ -204,3 +204,22 @@ def test_static_files_support_head_without_body(tmp_path):
     assert response.status_code == 200
     assert response.content == b""
     assert response.headers["x-content-type-options"] == "nosniff"
+
+
+def test_api_authorization_remains_under_fastapi_control(tmp_path):
+    (tmp_path / "index.html").write_text("<html>App</html>")
+    app = FastAPI()
+
+    def require_key(x_api_key: str | None = Header(default=None)) -> None:
+        if x_api_key != "test-key":
+            raise HTTPException(status_code=401, detail="Unauthorized")
+
+    @app.get("/api/private", dependencies=[Depends(require_key)])
+    def private_data():
+        return {"private": True}
+
+    client = TestClient(attach_frontend(app, tmp_path))
+    assert client.get("/api/private").status_code == 401
+    assert client.get("/api/private", headers={"x-api-key": "test-key"}).json() == {
+        "private": True
+    }

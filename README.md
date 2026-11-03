@@ -1,12 +1,16 @@
 # QPyServe
 
+[![PyPI](https://img.shields.io/pypi/v/qpyserve)](https://pypi.org/project/qpyserve/)
+[![CI](https://github.com/austinwin/qpyserve/actions/workflows/ci.yml/badge.svg)](https://github.com/austinwin/qpyserve/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 **FastAPI and a real web frontend, served from one origin with one Python command.**
 
 QPyServe is a small integration layer, not another web framework. Keep your normal FastAPI
 routes and your normal HTML/JavaScript, React, Vue, or other Vite frontend. QPyServe handles
 development startup, the local API proxy, and serving static assets in production.
 
-> **Status:** Early alpha. Version 0.1.1 is on `main` but not yet published to PyPI.
+> **Status:** Early alpha. See [PyPI](https://pypi.org/project/qpyserve/) for the latest published version.
 > No production throughput or security certification is claimed.
 
 ## Quick start: plain HTML, no Node.js
