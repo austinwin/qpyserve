@@ -14,3 +14,8 @@ QPyServe is an intentionally thin integration layer. Maintain the smallest publi
 - Run Python tests on Linux and Windows in CI when changing subprocess logic; test real React/Vite launch when possible.
 - Keep in-memory state explicitly local; scaling requires shared storage and representative load testing.
 - Update tests and README for any public behavior change. Avoid new dependencies without measurable benefit.
+
+- Static asset routes are public: validate requested and resolved paths; never serve arbitrary project files.
+- Development servers must remain bound to loopback; production API authentication belongs to FastAPI.
+- Run Ruff lint checks and regression tests for security, process, and routing changes.
+- Never treat passing tests as proof of security certification or 1,000-user performance.

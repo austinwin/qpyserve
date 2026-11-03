@@ -166,3 +166,41 @@ def test_vite_fingerprinted_assets_are_immutable_in_production(tmp_path):
     assert "immutable" not in client.get("/assets/index.js").headers.get("cache-control", "")
     dev = TestClient(attach_frontend(FastAPI(), tmp_path, live_reload=True, built_vite=True))
     assert dev.get("/assets/index-B3x7kmP2.js").headers["cache-control"] == "no-store"
+
+def test_only_public_asset_types_are_exposed(tmp_path):
+    client = client_with_site(tmp_path)
+    for name in ("settings.yaml", "config.toml", "Dockerfile", "run.sh", "bundle.map"):
+        (tmp_path / name).write_text("INTERNAL")
+        assert client.get("/" + name).status_code == 404
+    for name in ("map.geojson", "map.pbf", "data.csv", "style.css", "app.wasm"):
+        (tmp_path / name).write_text("PUBLIC")
+        assert client.get("/" + name).status_code == 200
+
+
+def test_static_security_headers_do_not_change_api(tmp_path):
+    client = client_with_site(tmp_path)
+    for path in ("/", "/app.js"):
+        assert client.get(path).headers["x-content-type-options"] == "nosniff"
+    assert "x-content-type-options" not in client.get("/api/ping").headers
+
+
+def test_symlink_to_allowed_file_outside_site_is_denied(tmp_path):
+    site = tmp_path / "site"
+    site.mkdir()
+    (site / "index.html").write_text("<html>safe</html>")
+    outside = tmp_path / "outside.txt"
+    outside.write_text("PRIVATE")
+    try:
+        (site / "alias.txt").symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("Symlinks unavailable")
+    client = TestClient(attach_frontend(FastAPI(), site))
+    assert client.get("/alias.txt").status_code == 404
+
+
+def test_static_files_support_head_without_body(tmp_path):
+    client = client_with_site(tmp_path)
+    response = client.head("/app.js")
+    assert response.status_code == 200
+    assert response.content == b""
+    assert response.headers["x-content-type-options"] == "nosniff"

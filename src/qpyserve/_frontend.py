@@ -50,7 +50,20 @@ _PRIVATE_FILENAMES = {
     "yarn.lock", "bun.lock", "bun.lockb", "id_rsa", "id_ed25519",
     "credentials.json", "secrets.json",
 }
-_PRIVATE_SUFFIXES = (".py", ".pyc", ".pem", ".key", ".p12", ".pfx", ".sqlite", ".sqlite3", ".db")
+_PRIVATE_SUFFIXES = (
+    ".py", ".pyc", ".pem", ".key", ".p12", ".pfx", ".sqlite",
+    ".sqlite3", ".db", ".map",
+)
+# Files under the static root must be browser assets. Serve other types through
+# explicit FastAPI endpoints, with authorization where appropriate.
+_PUBLIC_SUFFIXES = frozenset({
+    ".html", ".htm", ".css", ".js", ".mjs", ".json", ".webmanifest",
+    ".txt", ".xml", ".csv", ".geojson", ".pbf", ".mvt", ".pmtiles",
+    ".png", ".jpg", ".jpeg", ".webp", ".gif", ".svg", ".ico",
+    ".avif", ".apng", ".bmp", ".woff", ".woff2", ".ttf",
+    ".otf", ".eot", ".wasm", ".pdf", ".webm", ".mp3", ".mp4",
+    ".bin", ".glb", ".gltf",
+})
 _FINGERPRINTED_ASSET = re.compile(r"-[A-Za-z0-9_-]{8,}\.[A-Za-z0-9]+$")
 
 
@@ -64,6 +77,11 @@ def _blocked(parts: tuple[str, ...]) -> bool:
                 or name.endswith(_PRIVATE_SUFFIXES)):
             return True
     return False
+
+
+def _public_asset(file: Path) -> bool:
+    """Deny unfamiliar asset types; expose them through explicit API routes."""
+    return file.suffix.lower() in _PUBLIC_SUFFIXES
 
 
 def _safe_file(root: Path, file: Path) -> Path:
@@ -118,7 +136,7 @@ def attach_frontend(app: FastAPI, directory: str | Path, *, live_reload: bool = 
     async def unknown_api(unmatched_path: str):
         raise HTTPException(404, "API endpoint not found")
 
-    @app.get("/{asset_path:path}", include_in_schema=False)
+    @app.api_route("/{asset_path:path}", methods=["GET", "HEAD"], include_in_schema=False)
     async def frontend_asset(asset_path: str, request: Request):
         requested = "/" + asset_path
         if any(requested == prefix or requested.startswith(prefix + "/")
@@ -139,16 +157,19 @@ def attach_frontend(app: FastAPI, directory: str | Path, *, live_reload: bool = 
             else:
                 raise HTTPException(404, "Not found")
 
+        if not _public_asset(candidate):
+            raise HTTPException(404, "Not found")
+
         # A stale SPA entrypoint often causes the "hard refresh required" symptom.
+        # Only static responses receive these headers; APIs control their own.
+        headers = {"X-Content-Type-Options": "nosniff"}
         if live_reload:
-            headers = {"Cache-Control": "no-store"}
+            headers["Cache-Control"] = "no-store"
         elif candidate.suffix.lower() == ".html":
-            headers = {"Cache-Control": "no-cache"}
+            headers["Cache-Control"] = "no-cache"
         elif (built_vite and parts[:1] == ("assets",)
               and _FINGERPRINTED_ASSET.search(candidate.name)):
-            headers = {"Cache-Control": "public, max-age=31536000, immutable"}
-        else:
-            headers = {}
+            headers["Cache-Control"] = "public, max-age=31536000, immutable"
         if live_reload and candidate.suffix.lower() == ".html":
             html = candidate.read_text(encoding="utf-8")
             script = _RELOAD_SCRIPT

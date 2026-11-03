@@ -47,3 +47,16 @@ def test_production_missing_build_explains_one_command_option(tmp_path, monkeypa
     monkeypatch.setattr(sys, "argv", [str(tmp_path / "main.py")])
     with pytest.raises(FileNotFoundError, match="--prod --build"):
         run(FastAPI(), frontend=frontend, mode="production")
+
+def test_development_does_not_expose_vite_on_network(tmp_path):
+    with pytest.raises(ValueError, match="loopback"):
+        run(FastAPI(), frontend=tmp_path, host="0.0.0.0")
+
+
+def test_vite_build_dir_cannot_escape_frontend(tmp_path, monkeypatch):
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    (frontend / "package.json").write_text('{"devDependencies":{"vite":"^6"}}')
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "main.py")])
+    with pytest.raises(ValueError, match="dist must"):
+        run(FastAPI(), frontend=frontend, dist="../private")

@@ -71,6 +71,11 @@ def run(
         mode = "production" if "--prod" in sys.argv[1:] else os.environ.get("QPYSERVE_MODE", "development")
     if mode not in ("development", "production"):
         raise ValueError("mode must be 'development' or 'production'")
+    if mode == "development" and host not in {"127.0.0.1", "localhost", "::1"}:
+        raise ValueError(
+            "The Vite development server must use a loopback host. "
+            "Build the frontend and use production mode to serve remote users."
+        )
     if mode == "development" and workers > 1:
         raise ValueError("Multiple workers are supported only in production")
     if build is None:
@@ -90,6 +95,8 @@ def run(
 
     vite = has_vite(root)
     static_directory = root / dist if vite else root
+    if vite and not static_directory.resolve().is_relative_to(root):
+        raise ValueError("dist must resolve inside the frontend directory")
     if build:
         if vite:
             build_frontend(root)
