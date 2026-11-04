@@ -10,7 +10,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 WORKDIR /app
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
-COPY main.py geoengine.py Dockerfile ./
+COPY main.py geoengine.py smoke_test.py Dockerfile ./
+RUN python smoke_test.py
 COPY frontend/package.json ./frontend/
 COPY frontend/src ./frontend/src
 COPY frontend/public ./frontend/public
