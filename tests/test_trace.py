@@ -37,7 +37,7 @@ def test_request_id_is_correlated_without_leaking_secrets():
     )
     assert result.status_code == 200
     request_id = result.headers["x-qpyserve-trace-id"]
-    assert len(request_id) == 12
+    assert len(request_id) == 16
     report = client.get("/__qpyserve/trace").json()
     assert report["requests"][-1]["id"] == request_id
     assert report["requests"][-1]["route"] == "/api/items/{item_id}"
