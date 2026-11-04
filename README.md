@@ -8,7 +8,7 @@
 
 QPyServe connects normal FastAPI applications with plain HTML/JavaScript, React, Vue, or other Vite frontends. It handles local startup, API proxying, frontend dependencies, and production static assets without replacing either framework.
 
-> **Development branch 0.4.0:** improves Trace correlation, failure categories, and runtime supervision. For the latest published version see [PyPI](https://pypi.org/project/qpyserve/).
+> **What's new in 0.4.0:** browser-to-FastAPI error correlation, safer AI-ready diagnostic reports, supervised Vite/FastAPI processes, and reliable Python reload on Windows. See the [0.4.0 changelog](CHANGELOG.md#040--trace-correlation-and-runtime-reliability) and [interactive demo](examples/trace-demo/README.md).
 
 ## Create an app
 
@@ -67,7 +67,7 @@ It does not transmit data to external services, record request/response bodies,
 capture authorization headers or provide production APM. A copied report should be
 reviewed before sharing. To opt out, use `run(app, trace=False)`.
 
-[Trace documentation](docs/TRACE.md) · [Interactive Trace demo](examples/trace-demo/)
+[Trace documentation](docs/TRACE.md) · [Trace 0.4 example and expected results](examples/trace-demo/README.md) · [Release changes](CHANGELOG.md)
 
 ## Integrate into your existing application
 
@@ -151,7 +151,7 @@ python -m pytest -q
 python -m build
 ```
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), and [RELEASING.md](RELEASING.md). MIT-licensed.
+Read [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), [RELEASING.md](RELEASING.md), and the [changelog](CHANGELOG.md). MIT-licensed.
 
 ### Development runtime reliability (0.4.0)
 
