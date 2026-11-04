@@ -29,7 +29,7 @@ def create_app() -> FastAPI:
         raise TypeError(f"{config['app_import']} does not resolve to a FastAPI app")
     if config.get("client_output"):
         from ._client import client_output, generate_client, save_client
-        root = __import__("pathlib").Path(config["project_dir"])
+        root = Path(config["project_dir"])
         destination = client_output(root, config["client_output"])
         report = save_client(generate_client(app.openapi()), destination)
         if report["skipped"]:
