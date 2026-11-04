@@ -8,7 +8,7 @@
 
 QPyServe runs ordinary [FastAPI](https://fastapi.tiangolo.com/) applications with plain HTML/JavaScript, React, Vue, or other [Vite](https://vite.dev/)-based frontends. It keeps your frontend and backend as normal source files; it does **not** replace either framework.
 
-**New in 0.5.0:** Generate a typed TypeScript client from FastAPI/Pydantic (**API**), correlate browser failures with backend handlers (**Trace**), and prepare a Docker/Render deployment (**Ship**). See the [0.5.0 changelog](CHANGELOG.md), [Typed API guide](docs/TYPED_API.md), and [Ship guide](docs/SHIP.md).
+**New in 0.5.0:** Generate a typed TypeScript client from FastAPI/Pydantic (**API**), correlate browser failures with backend handlers (**Trace**), and prepare a Docker/Render deployment (**Ship**). See the [0.5.0 changelog](https://github.com/austinwin/qpyserve/blob/v0.5.0/CHANGELOG.md), [Typed API guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/TYPED_API.md), and [Ship guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/SHIP.md).
 
 ## Quick start
 
@@ -103,7 +103,7 @@ qpyserve api --check --json  # Non-writing CI/AI check; exit 1 on drift
 
 Generated files are replaced only when marked as QPyServe-generated; manually authored files are protected. The CLI `api` command **imports and executes trusted project code** to obtain the schema, unlike `doctor`. JSON request/response contracts are supported; unsupported multipart, streaming, cookie and non-JSON operations are reported as skipped, not silently typed incorrectly. Types are compile-time contracts, not runtime validation.
 
-[Full Typed API documentation](docs/TYPED_API.md)
+[Full Typed API documentation](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/TYPED_API.md)
 
 ## Trace: debug frontend and backend together
 
@@ -113,7 +113,7 @@ When a generated API call fails, the report can connect the browser request ID t
 
 **Trace is development-only and is disabled in production.** It does not store bodies, cookies, authorization headers, query strings, or absolute filesystem paths. It is not production monitoring or automatic root-cause analysis. Review copied reports before sharing. Disable locally using `run(app, trace=False)`.
 
-[Trace guide](docs/TRACE.md) · [Interactive failure demo](examples/trace-demo/README.md)
+[Trace guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/TRACE.md) · [Interactive failure demo](https://github.com/austinwin/qpyserve/tree/v0.5.0/examples/trace-demo/README.md)
 
 ## Ship: prepare a deployable app
 
@@ -128,7 +128,7 @@ docker run --rm -p 10000:10000 my-app
 
 **Ship does not deploy, create accounts, push code, or provide persistent storage.** Review the files, build locally, push to GitHub, and create a Render Blueprint from `render.yaml` if you choose Render. The generated free plan is for previews: free services sleep and have ephemeral storage. For production, add authentication, HTTPS, monitoring, durable storage, and an appropriate paid service plan as needed.
 
-[Ship and deployment guide](docs/SHIP.md)
+[Ship and deployment guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/SHIP.md)
 
 ## Production and safety
 
@@ -151,13 +151,13 @@ run(
 
 Development mode binds to the local loopback interface; **never publish a Vite development server**. Production deployments need appropriate HTTPS termination, authentication, authorization, rate limiting, backup, and monitoring. QPyServe does not include a database ORM, authentication system, cloud provisioning, distributed sessions, or load balancing. Static assets under the public frontend directory are readable by clients; never put credentials there.
 
-See [Security](SECURITY.md) and [deployment guidance](docs/SHIP.md). Benchmark your own workload; QPyServe makes no unsupported performance or concurrency claims.
+See [Security](https://github.com/austinwin/qpyserve/blob/v0.5.0/SECURITY.md) and [deployment guidance](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/SHIP.md). Benchmark your own workload; QPyServe makes no unsupported performance or concurrency claims.
 
 ## Project resources
 
-- [HTML counter](examples/counter-html) · [React counter](examples/counter-react) · [Trace example](examples/trace-demo)
-- [Typed API](docs/TYPED_API.md) · [Trace](docs/TRACE.md) · [Ship](docs/SHIP.md)
-- [Changelog](CHANGELOG.md) · [Contributing](CONTRIBUTING.md) · [Releasing](RELEASING.md) · [Security](SECURITY.md) · [AI agent guide](AGENTS.md)
+- [HTML counter](https://github.com/austinwin/qpyserve/tree/v0.5.0/examples/counter-html) · [React counter](https://github.com/austinwin/qpyserve/tree/v0.5.0/examples/counter-react) · [Trace example](https://github.com/austinwin/qpyserve/tree/v0.5.0/examples/trace-demo)
+- [Typed API](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/TYPED_API.md) · [Trace](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/TRACE.md) · [Ship](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/SHIP.md)
+- [Changelog](https://github.com/austinwin/qpyserve/blob/v0.5.0/CHANGELOG.md) · [Contributing](https://github.com/austinwin/qpyserve/blob/v0.5.0/CONTRIBUTING.md) · [Releasing](https://github.com/austinwin/qpyserve/blob/v0.5.0/RELEASING.md) · [Security](https://github.com/austinwin/qpyserve/blob/v0.5.0/SECURITY.md) · [AI agent guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/AGENTS.md)
 
 Run development checks:
 
