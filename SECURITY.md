@@ -43,3 +43,10 @@ Missing API routes do not fall back to the SPA HTML page.
 
 This is defense in depth, **not** permission to place secrets under the frontend
 directory. A deliberately public `data.json` will still be served.
+
+## Trace 0.4 diagnostics
+
+Browser-to-backend correlation IDs are identifiers, never authentication tokens.
+Reports use route templates instead of raw API paths and include only project-relative
+Python source locations. The client does not wrap cross-origin requests, and trace
+metadata must never be treated as safe to publish without developer review.

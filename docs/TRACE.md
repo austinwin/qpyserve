@@ -1,5 +1,29 @@
 # QPyServe Trace
 
+## Trace 0.4: correlation and diagnostics
+
+QPyServe Trace connects browser fetch/XHR failures to FastAPI requests by a short
+validated trace ID. It reports HTTP status, latency, exception *type*, safe
+project-relative Python source references, and failure categories. The **Copy AI
+report** action generates a versioned JSON report with a summary, correlated
+browser failures and relevant backend events.
+
+The collector never records request bodies, response bodies, query strings, cookies,
+authorization headers, or raw parameterized API URLs. Browser paths are reduced to
+configured API prefixes plus a redaction marker. Python source locations are
+included only when the traceback points to a visible `.py` file beneath your
+project directory. Still review reports before sharing them.
+
+Failure categories are observations, not root-cause claims:
+`python_exception`, `server_error`, `rate_limited`, `access_denied`,
+`not_found`, `client_error`, and `network_error`.
+
+Tracing remains local, in-memory, limited to 100 server requests and 50
+browser events, and **off in production**. It does not trace SQL or outgoing
+HTTP requests automatically. The browser wrapper observes same-origin API
+fetch and XMLHttpRequest calls; it does not modify cross-origin requests.
+
+
 QPyServe Trace is a small, local development panel for FastAPI and plain HTML, React, Vue, or other Vite frontends. It is automatically enabled when you run `python main.py` with QPyServe 0.3.0 or newer.
 
 ## Get started
@@ -30,3 +54,18 @@ The browser client is served at `/__qpyserve/trace.js` and backend snapshots at 
 - Client `fetch` errors are observed by wrapping browser `fetch`. Axios/XHR or a later replacement of `fetch` may not be observed client-side; API requests still show in the Python timeline.
 - Restrictive Content Security Policy configurations may need to permit the same-origin trace script and local panel styles.
 - Development servers must not be exposed to the public network, and trace is not an authentication, authorization, or security-auditing feature.
+
+## Development process lifecycle
+
+In Vite mode QPyServe supervises the Vite process and the Uvicorn reload
+supervisor. When a child exits, both process trees are stopped and the launcher
+reports which component exited. Python reloads remain handled by Uvicorn and
+frontend HMR by Vite; changes do not restart the other development server.
+This is not a production process supervisor.
+
+### Windows reload
+
+On Windows, QPyServe detects changes in project Python files and restarts only
+the FastAPI child process. This avoids Windows Uvicorn reload control signals
+that can affect other console processes. Linux/macOS retain Uvicorn's native
+reload. JavaScript HMR remains owned by Vite on every platform.

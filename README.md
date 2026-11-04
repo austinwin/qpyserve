@@ -8,7 +8,7 @@
 
 QPyServe connects normal FastAPI applications with plain HTML/JavaScript, React, Vue, or other Vite frontends. It handles local startup, API proxying, frontend dependencies, and production static assets without replacing either framework.
 
-> **Version 0.3.0:** adds development-only QPyServe Trace. For the latest published version see [PyPI](https://pypi.org/project/qpyserve/).
+> **Development branch 0.4.0:** improves Trace correlation, failure categories, and runtime supervision. For the latest published version see [PyPI](https://pypi.org/project/qpyserve/).
 
 ## Create an app
 
@@ -56,7 +56,9 @@ qpyserve doctor --json  # For AI tools and CI
 
 Run `python main.py` and click **Trace** in the bottom-right corner of your frontend.
 It shows recent FastAPI requests (HTTP status, route template, request ID, timing and
-exception type), browser fetch failures, and JavaScript errors in one development panel.
+exception type), browser fetch/XHR failures, and JavaScript errors in one development panel.
+Trace 0.4 correlates browser failures to backend errors and exports a redacted,
+structured report with failure categories and project-relative Python source references.
 Select **Copy AI report** to copy structured JSON for debugging with an AI assistant.
 Trace works with plain HTML, React and Vue without changing application code.
 
@@ -150,3 +152,11 @@ python -m build
 ```
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), and [RELEASING.md](RELEASING.md). MIT-licensed.
+
+### Development runtime reliability (0.4.0)
+
+When using Vite, QPyServe supervises the frontend dev server and the FastAPI
+reload process together. If either crashes, it exits with a clear error and
+cleans up both process trees. Python edits restart the API (Uvicorn's reloader on Linux/macOS,
+QPyServe's lightweight restart watcher on Windows); frontend edits use
+Vite HMR. Production process supervision remains the deployment platform's job.

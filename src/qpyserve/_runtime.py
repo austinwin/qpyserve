@@ -8,6 +8,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import time
 from typing import Iterable, Literal
 
 from fastapi import FastAPI
@@ -41,6 +42,122 @@ def _stop_process(process: subprocess.Popen) -> None:
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
+
+
+
+def _dev_process_command(
+    project_dir: Path, port: int, *, reload: bool = True,
+) -> list[str]:
+    """Launch the API; reload is owned by Uvicorn on POSIX."""
+    command = [
+        sys.executable, "-m", "uvicorn", "qpyserve._entry:create_app",
+        "--factory", "--host", "127.0.0.1", "--port", str(port),
+    ]
+    if reload:
+        command += [
+            "--reload", "--reload-dir", str(project_dir),
+            "--reload-include", "*.py",
+            "--reload-exclude", "node_modules/*",
+            "--reload-exclude", "dist/*",
+            "--reload-exclude", ".qpyserve.vite.config.mjs",
+        ]
+    return command
+
+
+def _python_snapshot(project_dir: Path) -> tuple[tuple[str, int, int], ...]:
+    """Detect added, changed and removed Python files while pruning large JS trees."""
+    excluded = {"node_modules", ".git", ".venv", "venv", "dist",
+                "build", "__pycache__", ".tox", ".mypy_cache"}
+    results: list[tuple[str, int, int]] = []
+    for folder, dirs, names in os.walk(project_dir):
+        dirs[:] = [name for name in dirs if name not in excluded and not name.startswith(".")]
+        for name in names:
+            if not name.endswith(".py"):
+                continue
+            file = Path(folder) / name
+            try:
+                stat = file.stat()
+            except OSError:
+                continue
+            results.append((str(file.relative_to(project_dir)), stat.st_mtime_ns, stat.st_size))
+    return tuple(sorted(results))
+
+
+def _supervise_dev(
+    vite_cmd: list[str],
+    frontend_root: Path,
+    project_dir: Path,
+    port: int,
+    *,
+    reload_on_change: bool | None = None,
+) -> None:
+    """Supervise frontend/backend processes and stop them together on failure.
+
+    Linux uses Uvicorn's Python reloader. Windows uses a small file snapshot to
+    restart only the backend; Uvicorn's Windows CTRL_C_EVENT can otherwise
+    interrupt other console processes.
+    """
+    # Uvicorn reload uses console control events on Windows. Separate consoles
+    # prevent a worker reload from interrupting QPyServe or its parent shell.
+    kwargs = ({"creationflags": subprocess.CREATE_NEW_CONSOLE}
+              if os.name == "nt" else {"start_new_session": True})
+    children: list[tuple[str, subprocess.Popen]] = []
+    previous_handlers = {}
+
+    def request_shutdown(_signum, _frame) -> None:
+        raise KeyboardInterrupt
+
+    # SIGTERM on POSIX and CTRL_BREAK_EVENT (SIGBREAK) on Windows should
+    # trigger the same cleanup as Ctrl+C. A background thread cannot register
+    # signal handlers; it still gets the normal stop logic on KeyboardInterrupt.
+    signals = [signal.SIGTERM]
+    if os.name == "nt" and hasattr(signal, "SIGBREAK"):
+        signals.append(signal.SIGBREAK)
+    for signum in signals:
+        try:
+            previous_handlers[signum] = signal.getsignal(signum)
+            signal.signal(signum, request_shutdown)
+        except ValueError:
+            previous_handlers.pop(signum, None)
+    if reload_on_change is None:
+        reload_on_change = os.name == "nt"
+    snapshot = _python_snapshot(project_dir) if reload_on_change else ()
+    last_scan = time.monotonic()
+    api_command = _dev_process_command(project_dir, port + 1, reload=not reload_on_change)
+    try:
+        vite = subprocess.Popen(vite_cmd, cwd=frontend_root, **kwargs)
+        children.append(("Vite", vite))
+        backend = subprocess.Popen(api_command, cwd=project_dir, **kwargs)
+        children.append(("FastAPI", backend))
+        print(
+            f"[qpyserve] http://localhost:{port} (Vite + FastAPI, supervised)",
+            flush=True,
+        )
+        while True:
+            for name, process in children:
+                status = process.poll()
+                if status is not None:
+                    raise RuntimeError(
+                        f"{name} exited with status {status}. "
+                        "Check the error above, fix the cause, and run python main.py again."
+                    )
+            if reload_on_change and time.monotonic() - last_scan >= 0.8:
+                last_scan = time.monotonic()
+                current = _python_snapshot(project_dir)
+                if current != snapshot:
+                    snapshot = current
+                    print("[qpyserve] Python source changed: restarting FastAPI", flush=True)
+                    _stop_process(children[1][1])
+                    replacement = subprocess.Popen(api_command, cwd=project_dir, **kwargs)
+                    children[1] = ("FastAPI", replacement)
+            time.sleep(0.2)
+    except KeyboardInterrupt:
+        print("\n[qpyserve] Stopping development servers", flush=True)
+    finally:
+        for _name, process in reversed(children):
+            _stop_process(process)
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
 
 
 def run(
@@ -129,6 +246,7 @@ def run(
 
     config = {
         "app_import": app_import,
+        "project_dir": str(project_dir),
         "serve_frontend": not (vite and mode == "development"),
         "static_directory": str(static_directory),
         "live_reload": not vite and mode == "development",
@@ -138,23 +256,17 @@ def run(
     }
     previous = os.environ.get("QPYSERVE_RUNTIME_CONFIG")
     os.environ["QPYSERVE_RUNTIME_CONFIG"] = json.dumps(config)
-    vite_process: subprocess.Popen | None = None
     generated_config: Path | None = None
     try:
         if vite and mode == "development":
             manager = package_manager(root)
             command = ensure_dependencies(root, manager)
-            generated_config = vite_config(root, host=host, port=port,
-                                           backend_port=port + 1, api_paths=paths, trace_enabled=trace)
+            generated_config = vite_config(
+                root, host=host, port=port, backend_port=port + 1,
+                api_paths=paths, trace_enabled=trace,
+            )
             cmd = vite_command(command, manager, "--config", generated_config.name)
-            kwargs = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
-                      if os.name == "nt" else {"start_new_session": True})
-            vite_process = subprocess.Popen(cmd, cwd=root, **kwargs)
-            print(f"[qpyserve] http://localhost:{port} (Vite) /api -> localhost:{port + 1}", flush=True)
-            uvicorn.run("qpyserve._entry:create_app", factory=True, host="127.0.0.1",
-                        port=port + 1, reload=True, reload_dirs=[str(project_dir)],
-                        reload_includes=["*.py"],
-                        reload_excludes=["node_modules", "dist", ".qpyserve.vite.config.mjs"])
+            _supervise_dev(cmd, root, project_dir, port)
         else:
             print(f"[qpyserve] http://localhost:{port} ({mode})", flush=True)
             uvicorn.run("qpyserve._entry:create_app", factory=True, host=host,
@@ -164,8 +276,6 @@ def run(
                         reload_includes=["*.py"] if mode == "development" else None,
                         reload_excludes=["node_modules", "dist"] if mode == "development" else None)
     finally:
-        if vite_process is not None:
-            _stop_process(vite_process)
         if generated_config is not None:
             generated_config.unlink(missing_ok=True)
         if previous is None:

@@ -4,40 +4,113 @@
   if (window.__qpyserveTrace) return;
   window.__qpyserveTrace = true;
 
+  const apiPrefixes = __QPYSERVE_API_PATHS__;
   const events = [];
   let requests = [];
   let open = false;
   const nativeFetch = window.fetch.bind(window);
-  const pathFor = (input) => {
+
+  const requestInfo = (input) => {
     try {
       const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-      if (url.origin !== location.origin) return '(external origin)';
-      return url.pathname.split('/').map((part) => part.length > 24 ? '[id]' : part).join('/');
-    } catch (_) { return '(invalid URL)'; }
+      if (url.origin !== location.origin) return null;
+      const prefix = apiPrefixes.find((p) => url.pathname === p || url.pathname.startsWith(p + '/'));
+      if (!prefix) return null;
+      // Client reports use a prefix and marker, never a raw parameter or URL query.
+      return { path: prefix + (url.pathname === prefix ? '' : '/[redacted]') };
+    } catch (_) { return null; }
+  };
+  const pathFor = (input) => {
+    try {
+      const url = new URL(String(input), location.href);
+      return url.origin === location.origin ? url.pathname.split('/').pop() || '/' : '(external)';
+    } catch (_) { return '(unknown)'; }
+  };
+  const nextId = () => {
+    if (window.crypto && typeof window.crypto.randomUUID === 'function') {
+      return window.crypto.randomUUID().replace(/-/g, '').slice(0, 16);
+    }
+    // A missing crypto API should not cause application requests to fail.
+    return null;
   };
   const add = (event) => {
-    events.push({ time: new Date().toISOString(), ...event });
+    events.push({time: new Date().toISOString(), ...event});
     if (events.length > 50) events.shift();
     if (open) render();
   };
+  const classify = (status) => {
+    if (status === 429) return 'rate_limited';
+    if (status === 401 || status === 403) return 'access_denied';
+    if (status === 404) return 'not_found';
+    if (status >= 500) return 'server_error';
+    if (status >= 400) return 'client_error';
+    return 'ok';
+  };
+  const traceHeaders = (original, extra, id) => {
+    const headers = new Headers(original instanceof Request ? original.headers : undefined);
+    if (extra && extra.headers) {
+      new Headers(extra.headers).forEach((value, key) => headers.set(key, value));
+    }
+    headers.set('x-qpyserve-trace-id', id);
+    return headers;
+  };
 
   window.fetch = function (...args) {
-    const url = args[0];
-    const path = pathFor(url);
-    const method = String(args[1]?.method || (url instanceof Request ? url.method : 'GET')).toUpperCase();
+    const input = args[0];
+    const info = requestInfo(input);
+    if (!info) return nativeFetch(...args);
+    const init = args[1] || {};
+    const method = String(init.method || (input instanceof Request ? input.method : 'GET')).toUpperCase();
+    const id = nextId();
     const start = performance.now();
-    return nativeFetch(...args).then((res) => {
-      if (!res.ok && !path.startsWith('/__qpyserve/')) {
-        add({ kind: 'HTTP', method, path, status: res.status,
-          duration_ms: Math.round(performance.now() - start),
-          trace_id: res.headers.get('x-qpyserve-trace-id') || null });
+    const invoke = id
+      ? nativeFetch(input, {...init, headers: traceHeaders(input, init, id)})
+      : nativeFetch(...args);
+    return invoke.then((response) => {
+      if (!response.ok) {
+        add({kind: 'HTTP', category: classify(response.status), method, path: info.path,
+          status: response.status, duration_ms: Math.round(performance.now() - start),
+          trace_id: response.headers.get('x-qpyserve-trace-id') || id});
       }
-      return res;
-    }, (err) => {
-      if (!path.startsWith('/__qpyserve/')) add({ kind: 'Network', method, path, error: err?.name || 'FetchError' });
-      throw err;
+      return response;
+    }, (error) => {
+      add({kind: 'Network', category: 'network_error', method, path: info.path,
+        trace_id: id, name: error && error.name || 'FetchError'});
+      throw error;
     });
   };
+
+  // XMLHttpRequest/Axios uses the same correlation scheme as fetch.
+  const XHR = window.XMLHttpRequest;
+  if (XHR && XHR.prototype) {
+    const originalOpen = XHR.prototype.open;
+    const originalSend = XHR.prototype.send;
+    XHR.prototype.open = function (method, url, ...rest) {
+      this.__qpyserveInfo = {method: String(method).toUpperCase(), info: requestInfo(url)};
+      return originalOpen.call(this, method, url, ...rest);
+    };
+    XHR.prototype.send = function (...args) {
+      const record = this.__qpyserveInfo;
+      if (record && record.info) {
+        const id = nextId();
+        const start = performance.now();
+        if (id) {
+          try { this.setRequestHeader('x-qpyserve-trace-id', id); } catch (_) { /* Keep request working. */ }
+        }
+        this.addEventListener('loadend', () => {
+          const status = this.status || 0;
+          if (status >= 400 || status === 0) {
+            add({kind: status === 0 ? 'Network' : 'HTTP', category: status === 0
+              ? 'network_error' : classify(status), method: record.method,
+              path: record.info.path, status,
+              duration_ms: Math.round(performance.now() - start),
+              trace_id: this.getResponseHeader('x-qpyserve-trace-id') || id});
+          }
+        }, {once: true});
+      }
+      return originalSend.apply(this, args);
+    };
+  }
 
   window.addEventListener('error', (event) => {
     add({ kind: 'JavaScript', name: event.error?.name || 'Error',
@@ -110,7 +183,7 @@
     listing.replaceChildren();
     const list = [
       ...requests.map((x) => ({kind: 'FastAPI', ...x})), ...events
-    ].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 60);
+    ].sort((a, b) => String(b.time || '').localeCompare(String(a.time || ''))).slice(0, 60);
     if (!list.length) {
       const empty = document.createElement('p');
       empty.className = 'empty';
@@ -126,7 +199,7 @@
       title.classList.add(event.status >= 400 || event.kind !== 'FastAPI' ? 'danger' : 'ok');
       const detail = document.createElement('div'); detail.className = 'detail';
       detail.textContent = [event.duration_ms != null ? `${event.duration_ms} ms` : '',
-        event.trace_id || event.id || '', event.exception || '', event.source || '']
+        event.trace_id || event.id || '', event.category || '', event.exception || '', event.source || '']
         .filter(Boolean).join(' · ');
       box.append(title, detail); listing.append(box);
     }
@@ -144,9 +217,28 @@
   });
   copy.addEventListener('click', async () => {
     await refresh();
-    const report = {format: 'qpyserve-trace-v1', time: new Date().toISOString(),
-      backend: requests, browser: [...events],
-      warning: 'Review routes and errors for sensitive information before sharing.'};
+    const failed = requests.filter((r) => r.status >= 400 || r.exception);
+    const linkedBrowser = events.map((event) => {
+      const match = event.trace_id && requests.find((r) => r.id === event.trace_id);
+      return match
+        ? {...event, backend: {route: match.route, category: match.category,
+          status: match.status, source: match.source || null}}
+        : event;
+    });
+    const report = {
+      format: 'qpyserve-trace-v2',
+      generated_at: new Date().toISOString(),
+      summary: {
+        backend_requests: requests.length, backend_failures: failed.length,
+        browser_events: events.length, correlated_events:
+          linkedBrowser.filter((e) => e.backend).length,
+      },
+      backend_failures: failed.slice(-40),
+      browser_events: linkedBrowser.slice(-50),
+      recent_backend_requests: requests.slice(-20),
+      privacy: 'No request bodies, secrets, raw URLs, or query strings collected. Review before sharing.',
+      limitations: 'No automatic SQL or external HTTP tracing; unmatched requests cannot be diagnosed automatically.',
+    };
     try {
       await navigator.clipboard.writeText(JSON.stringify(report, null, 2));
       copy.textContent = 'Copied!';
