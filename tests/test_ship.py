@@ -32,6 +32,8 @@ def test_ship_generates_valid_reviewable_assets(tmp_path: Path, template: str) -
     assert 'CMD ["python", "docker-start.py"]' in dockerfile
     assert "qpyserve>=0.4,<1" in dockerfile
     assert "RUN python -m pip install" in dockerfile
+    assert "fi\nEXPOSE 10000" in dockerfile
+    assert "\\nEXPOSE" not in dockerfile
     assert (project / "render.yaml").read_text().startswith("services:\n")
     assert "healthCheckPath: /__qpyserve/health" in (project / "render.yaml").read_text()
     assert "plan: free" in (project / "render.yaml").read_text()
