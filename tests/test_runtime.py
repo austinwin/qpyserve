@@ -60,3 +60,78 @@ def test_vite_build_dir_cannot_escape_frontend(tmp_path, monkeypatch):
     monkeypatch.setattr(sys, "argv", [str(tmp_path / "main.py")])
     with pytest.raises(ValueError, match="dist must"):
         run(FastAPI(), frontend=frontend, dist="../private")
+
+
+
+def test_supervision_stops_both_processes_if_backend_crashes(monkeypatch, tmp_path):
+    from qpyserve import _runtime
+
+    class Process:
+        def __init__(self, status):
+            self.status = status
+        def poll(self):
+            return self.status
+
+    vite, backend = Process(None), Process(1)
+    commands = []
+    stopped = []
+    processes = iter([vite, backend])
+    monkeypatch.setattr(_runtime.subprocess, "Popen",
+                        lambda command, **kw: (commands.append((command, kw))
+                                               or next(processes)))
+    monkeypatch.setattr(_runtime, "_stop_process", stopped.append)
+    with pytest.raises(RuntimeError, match="FastAPI exited with status 1"):
+        _runtime._supervise_dev(["npm", "exec", "vite"], tmp_path, tmp_path, 1111)
+    assert len(commands) == 2
+    assert commands[1][0][0] == sys.executable
+    assert "--reload" in commands[1][0]
+    assert commands[1][1]["cwd"] == tmp_path
+    assert stopped == [backend, vite]
+
+
+def test_supervision_detects_frontend_crash(monkeypatch, tmp_path):
+    from qpyserve import _runtime
+
+    class Process:
+        def __init__(self, status):
+            self.status = status
+        def poll(self):
+            return self.status
+
+    vite, backend = Process(2), Process(None)
+    stopped = []
+    processes = iter([vite, backend])
+    monkeypatch.setattr(_runtime.subprocess, "Popen",
+                        lambda *_a, **_kw: next(processes))
+    monkeypatch.setattr(_runtime, "_stop_process", stopped.append)
+    with pytest.raises(RuntimeError, match="Vite exited with status 2"):
+        _runtime._supervise_dev(["npm"], tmp_path, tmp_path, 1111)
+    assert stopped == [backend, vite]
+
+
+def test_supervision_ctrl_c_cleans_up_children(monkeypatch, tmp_path):
+    from qpyserve import _runtime
+
+    class Process:
+        def poll(self):
+            return None
+
+    vite, backend = Process(), Process()
+    processes = iter([vite, backend])
+    stopped = []
+    monkeypatch.setattr(_runtime.subprocess, "Popen",
+                        lambda *_a, **_kw: next(processes))
+    monkeypatch.setattr(_runtime, "_stop_process", stopped.append)
+    monkeypatch.setattr(_runtime.time, "sleep", lambda _: (_ for _ in ()).throw(KeyboardInterrupt))
+    _runtime._supervise_dev(["npm"], tmp_path, tmp_path, 1111)
+    assert stopped == [backend, vite]
+
+
+def test_dev_backend_uses_project_reload_scope(tmp_path):
+    from qpyserve._runtime import _dev_process_command
+
+    command = _dev_process_command(tmp_path, 2222)
+    assert "--reload" in command
+    assert command[command.index("--reload-dir") + 1] == str(tmp_path)
+    assert command[command.index("--port") + 1] == "2222"
+    assert "node_modules/*" in command

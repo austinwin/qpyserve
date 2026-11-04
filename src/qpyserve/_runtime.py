@@ -8,6 +8,7 @@ from pathlib import Path
 import signal
 import subprocess
 import sys
+import time
 from typing import Iterable, Literal
 
 from fastapi import FastAPI
@@ -41,6 +42,60 @@ def _stop_process(process: subprocess.Popen) -> None:
     except subprocess.TimeoutExpired:
         process.kill()
         process.wait()
+
+
+
+def _dev_process_command(project_dir: Path, port: int) -> list[str]:
+    """Start Uvicorn as a supervised reload process with inherited trace config."""
+    return [
+        sys.executable, "-m", "uvicorn", "qpyserve._entry:create_app",
+        "--factory", "--host", "127.0.0.1", "--port", str(port),
+        "--reload", "--reload-dir", str(project_dir),
+        "--reload-include", "*.py",
+        "--reload-exclude", "node_modules/*",
+        "--reload-exclude", "dist/*",
+        "--reload-exclude", ".qpyserve.vite.config.mjs",
+    ]
+
+
+def _supervise_dev(
+    vite_cmd: list[str],
+    frontend_root: Path,
+    project_dir: Path,
+    port: int,
+) -> None:
+    """Keep both child processes alive; stop the entire tree when either exits.
+
+    Uvicorn owns Python reloads; Vite owns frontend HMR. The Python parent owns
+    process lifecycle and cannot silently leave an orphan when a child crashes.
+    """
+    kwargs = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+              if os.name == "nt" else {"start_new_session": True})
+    children: list[tuple[str, subprocess.Popen]] = []
+    try:
+        vite = subprocess.Popen(vite_cmd, cwd=frontend_root, **kwargs)
+        children.append(("Vite", vite))
+        backend = subprocess.Popen(_dev_process_command(project_dir, port + 1),
+                                   cwd=project_dir, **kwargs)
+        children.append(("FastAPI", backend))
+        print(
+            f"[qpyserve] http://localhost:{port} (Vite + FastAPI, supervised)",
+            flush=True,
+        )
+        while True:
+            for name, process in children:
+                status = process.poll()
+                if status is not None:
+                    raise RuntimeError(
+                        f"{name} exited with status {status}. "
+                        "Check the error above, fix the cause, and run python main.py again."
+                    )
+            time.sleep(0.2)
+    except KeyboardInterrupt:
+        print("\n[qpyserve] Stopping development servers", flush=True)
+    finally:
+        for _name, process in reversed(children):
+            _stop_process(process)
 
 
 def run(
@@ -139,23 +194,17 @@ def run(
     }
     previous = os.environ.get("QPYSERVE_RUNTIME_CONFIG")
     os.environ["QPYSERVE_RUNTIME_CONFIG"] = json.dumps(config)
-    vite_process: subprocess.Popen | None = None
     generated_config: Path | None = None
     try:
         if vite and mode == "development":
             manager = package_manager(root)
             command = ensure_dependencies(root, manager)
-            generated_config = vite_config(root, host=host, port=port,
-                                           backend_port=port + 1, api_paths=paths, trace_enabled=trace)
+            generated_config = vite_config(
+                root, host=host, port=port, backend_port=port + 1,
+                api_paths=paths, trace_enabled=trace,
+            )
             cmd = vite_command(command, manager, "--config", generated_config.name)
-            kwargs = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
-                      if os.name == "nt" else {"start_new_session": True})
-            vite_process = subprocess.Popen(cmd, cwd=root, **kwargs)
-            print(f"[qpyserve] http://localhost:{port} (Vite) /api -> localhost:{port + 1}", flush=True)
-            uvicorn.run("qpyserve._entry:create_app", factory=True, host="127.0.0.1",
-                        port=port + 1, reload=True, reload_dirs=[str(project_dir)],
-                        reload_includes=["*.py"],
-                        reload_excludes=["node_modules", "dist", ".qpyserve.vite.config.mjs"])
+            _supervise_dev(cmd, root, project_dir, port)
         else:
             print(f"[qpyserve] http://localhost:{port} ({mode})", flush=True)
             uvicorn.run("qpyserve._entry:create_app", factory=True, host=host,
@@ -165,8 +214,6 @@ def run(
                         reload_includes=["*.py"] if mode == "development" else None,
                         reload_excludes=["node_modules", "dist"] if mode == "development" else None)
     finally:
-        if vite_process is not None:
-            _stop_process(vite_process)
         if generated_config is not None:
             generated_config.unlink(missing_ok=True)
         if previous is None:

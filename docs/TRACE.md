@@ -54,3 +54,11 @@ The browser client is served at `/__qpyserve/trace.js` and backend snapshots at 
 - Client `fetch` errors are observed by wrapping browser `fetch`. Axios/XHR or a later replacement of `fetch` may not be observed client-side; API requests still show in the Python timeline.
 - Restrictive Content Security Policy configurations may need to permit the same-origin trace script and local panel styles.
 - Development servers must not be exposed to the public network, and trace is not an authentication, authorization, or security-auditing feature.
+
+## Development process lifecycle
+
+In Vite mode QPyServe supervises the Vite process and the Uvicorn reload
+supervisor. When a child exits, both process trees are stopped and the launcher
+reports which component exited. Python reloads remain handled by Uvicorn and
+frontend HMR by Vite; changes do not restart the other development server.
+This is not a production process supervisor.

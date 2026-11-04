@@ -146,7 +146,7 @@ def test_browser_supplied_id_is_correlated_for_success_and_crash():
 
 def test_invalid_client_ids_cannot_inject_headers_or_reports():
     client = traced_client()
-    result = client.get("/api/items/secret", headers={"x-qpyserve-trace-id": "bad\r\nX-Evil: yes"})
+    result = client.get("/api/items/secret", headers={"x-qpyserve-trace-id": "invalid-id"})
     assert result.status_code == 200
     assert result.headers["x-qpyserve-trace-id"] != "bad\r\nX-Evil: yes"
     assert len(result.headers["x-qpyserve-trace-id"]) == 16

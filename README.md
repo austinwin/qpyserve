@@ -152,3 +152,10 @@ python -m build
 ```
 
 Read [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), and [RELEASING.md](RELEASING.md). MIT-licensed.
+
+### Development runtime reliability (0.4.0)
+
+When using Vite, QPyServe supervises the frontend dev server and the FastAPI
+reload process together. If either crashes, it exits with a clear error and
+cleans up both process trees. Python edits reload Uvicorn; frontend edits use
+Vite HMR. Production process supervision remains the deployment platform's job.
