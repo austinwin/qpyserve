@@ -38,6 +38,9 @@ def test_ship_generates_valid_reviewable_assets(tmp_path: Path, template: str) -
     assert "healthCheckPath: /__qpyserve/health" in (project / "render.yaml").read_text()
     assert "plan: free" in (project / "render.yaml").read_text()
     assert ".env" in (project / ".dockerignore").read_text()
+    assert "**/.npmrc" in (project / ".dockerignore").read_text()
+    assert "**/.pypirc" in (project / ".dockerignore").read_text()
+    assert "**/.qpyserve.*" in (project / ".dockerignore").read_text()
     assert "node_modules" in (project / ".dockerignore").read_text()
     if template == "html":
         assert "frontend-build" not in dockerfile
