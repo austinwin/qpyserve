@@ -204,11 +204,12 @@ jobs:
           cat > /tmp/qps-typed/frontend/src/check.ts <<'TS'
           import { api, QPyServeApiError, type Schemas } from "./qpyserve-api";
 
-          const req: Promise<Schemas["Sensor"]> = api.getSensor({
-            path: { sensor_id: 7 }, query: { verbose: true },
-          });
-          // These must fail at compile time, even though TS discards this branch.
+          // These must typecheck or fail at compile time without invoking fetch.
           if (false) {
+            const req: Promise<Schemas["Sensor"]> = api.getSensor({
+              path: { sensor_id: 7 }, query: { verbose: true },
+            });
+            void req;
             // @ts-expect-error numeric path parameter cannot be a string
             api.getSensor({ path: { sensor_id: "bad" } });
             // @ts-expect-error missing required Pydantic JSON body
@@ -218,7 +219,6 @@ jobs:
             // @ts-expect-error nonexistent endpoint
             api.unknownEndpoint();
           }
-          void req;
           const calls: Array<{ input: string; init: RequestInit | undefined }> = [];
           globalThis.fetch = async (input, init) => {
             calls.push({ input: String(input), init });
