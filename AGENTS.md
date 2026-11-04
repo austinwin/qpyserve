@@ -29,3 +29,7 @@ QPyServe is an intentionally thin integration layer. Maintain the smallest publi
 - QPyServe Trace must remain development-only, bounded and in-memory. Never store request bodies, cookies, authorization headers or query strings.
 - Keep the trace client framework-independent and avoid adding browser build dependencies.
 - Add regression tests when changing trace injection, the Vite proxy or production defaults.
+
+- `qpyserve ship` must never overwrite a user's deployment files, access credentials, or claim to have deployed anything.
+- Generated containers must run in production mode, bind to 0.0.0.0, honor `PORT`, and exclude local secrets/build artifacts from Docker context.
+- Preserve React/Vue/HTML starter compatibility; generated deployment assets should be ordinary editable files.

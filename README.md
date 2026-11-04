@@ -118,6 +118,37 @@ The frontend can call `fetch("/api/hello")` without a separate browser origin or
 
 See the [HTML counter](https://github.com/austinwin/qpyserve/tree/main/examples/counter-html) and [React counter](https://github.com/austinwin/qpyserve/tree/main/examples/counter-react) for more examples.
 
+## From project to deployable app: QPyServe Ship (unreleased)
+
+**Ship is not part of PyPI 0.4.0 yet.** After this change reaches main,\ninstall the GitHub development version or use the next published release.\n\nAfter building and testing your application, generate **editable deployment files**:
+
+```bash
+qpyserve ship
+# Or: qpyserve ship --app main:app --name my-water-map --json
+docker build -t my-water-map .
+docker run --rm -p 10000:10000 my-water-map
+```
+
+Open **http://localhost:10000** to test the container. `ship` generates
+`Dockerfile`, `.dockerignore`, `docker-start.py`, and `render.yaml`. It
+supports plain HTML or Vite frontends using npm, pnpm, Yarn, or Bun. Vite assets
+are built in the Docker build stage; production serves static files and FastAPI
+on a single port. `PORT` can be set by the hosting provider.
+
+To publish, review the generated files, commit and push the project to GitHub,
+then use **Render Dashboard → New → Blueprint** to connect the repository and
+deploy using `render.yaml`. This is deliberately **not** a new hosting
+platform, a cloud account connector, or an automatic deploy command.
+
+The generated Render service uses the **free** plan for preview use. Free
+services sleep when idle and have ephemeral storage; they are not suitable for
+reliable production or persistent local data. Authentication, environment
+secrets, external dependencies, DNS and billing remain your responsibility.
+Use external durable storage for databases/uploads. Before deploying real
+workloads, review `docker-start.py`, requirements, the Docker build logs,
+and your API's authorization rules. Existing deployment files are never
+overwritten by `ship`. See [Render's free-plan limitations](https://render.com/docs/free).
+
 ## Production
 
 Build the frontend during CI/CD with `python main.py --build`. Run `python main.py --prod` with prebuilt assets. Node.js isn't required in the production runtime for static frontends. Plain HTML/JS needs no build.
