@@ -35,6 +35,14 @@ dist
 .env.*
 **/.env
 **/.env.*
+.npmrc
+**/.npmrc
+.pypirc
+**/.pypirc
+.netrc
+**/.netrc
+.aws
+**/.aws
 **/.ssh
 **/*.pem
 **/*.key
@@ -44,6 +52,7 @@ dist
 **/*.sqlite3
 **/*.db
 .qpyserve.*
+**/.qpyserve.*
 """
 
 
