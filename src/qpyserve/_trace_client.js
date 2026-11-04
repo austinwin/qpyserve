@@ -183,7 +183,7 @@
     listing.replaceChildren();
     const list = [
       ...requests.map((x) => ({kind: 'FastAPI', ...x})), ...events
-    ].sort((a, b) => b.time.localeCompare(a.time)).slice(0, 60);
+    ].sort((a, b) => String(b.time || '').localeCompare(String(a.time || ''))).slice(0, 60);
     if (!list.length) {
       const empty = document.createElement('p');
       empty.className = 'empty';

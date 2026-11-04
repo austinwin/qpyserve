@@ -12,7 +12,7 @@ const source = fs.readFileSync(
 class Control {
   constructor() {
     this.listeners = {};
-    this.classList = {toggle() {}};
+    this.classList = {toggle() {}, add() {}};
     this.textContent = "";
     this.children = [];
   }
@@ -59,7 +59,7 @@ test("real failing API request correlates and redacts private URL segments", asy
   const env = browser((input, init) => {
     if (input === "/__qpyserve/trace") {
       return new Response(JSON.stringify({requests: [{
-        id: "0123456789abcdef", method: "GET", route: "/api/items/{item_id}",
+        id: "0123456789abcdef", time: "2026-11-04T03:10:00Z", method: "GET", route: "/api/items/{item_id}",
         status: 503, category: "server_error", duration_ms: 12.5
       }]}), {status: 200, headers: {"content-type": "application/json"}});
     }
