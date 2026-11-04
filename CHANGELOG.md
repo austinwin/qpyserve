@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased — Ship: portable deployment assets
+
+### Added
+- `qpyserve ship` creates an editable Dockerfile, a protective `.dockerignore`, an explicit production `docker-start.py`, and a Render Blueprint.
+- HTML and Vite (npm, pnpm, Yarn, Bun) support with multi-stage frontend builds where needed.
+- `--app`, `--name`, and `--json` options for nonstandard entry points and AI-assisted workflows.
+- Non-destructive generation, production-only startup on the hosting provider `PORT`, and regression coverage for package managers and file collisions.
+
+### Limitations
+- `ship` prepares files but does not create an account, publish a repository, deploy a service, guarantee production readiness, or provide persistent storage.
+- Generated Render configuration uses a free preview instance; review authentication, dependencies, storage, cost and configuration before going live.
+
+
 Changes are grouped by package version. QPyServe follows an early-alpha release cycle.
 
 ## 0.4.0 — Trace correlation and runtime reliability
