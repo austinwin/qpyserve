@@ -102,7 +102,7 @@ def _dockerfile(frontend: Path) -> str:
     result += (
         'RUN python -m pip install --no-cache-dir "qpyserve>=0.4,<1" \\\n'
         ' && if [ -f requirements.txt ]; then python -m pip install --no-cache-dir -r requirements.txt; fi \\\n'
-        ' && if [ -f pyproject.toml ]; then python -m pip install --no-cache-dir .; fi\\n'
+        ' && if [ -f pyproject.toml ]; then python -m pip install --no-cache-dir .; fi\n'
         "EXPOSE 10000\n"
         'CMD ["python", "docker-start.py"]\n'
     )
