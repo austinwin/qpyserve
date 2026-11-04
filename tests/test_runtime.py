@@ -1,3 +1,4 @@
+import os
 import sys
 
 from fastapi import FastAPI
@@ -84,7 +85,7 @@ def test_supervision_stops_both_processes_if_backend_crashes(monkeypatch, tmp_pa
         _runtime._supervise_dev(["npm", "exec", "vite"], tmp_path, tmp_path, 1111)
     assert len(commands) == 2
     assert commands[1][0][0] == sys.executable
-    assert "--reload" in commands[1][0]
+    assert ("--reload" in commands[1][0]) == (os.name != "nt")
     assert commands[1][1]["cwd"] == tmp_path
     assert stopped == [backend, vite]
 
