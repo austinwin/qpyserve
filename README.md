@@ -118,9 +118,9 @@ The frontend can call `fetch("/api/hello")` without a separate browser origin or
 
 See the [HTML counter](https://github.com/austinwin/qpyserve/tree/main/examples/counter-html) and [React counter](https://github.com/austinwin/qpyserve/tree/main/examples/counter-react) for more examples.
 
-## From project to deployable app: QPyServe Ship
+## From project to deployable app: QPyServe Ship (unreleased)
 
-After building and testing your application, generate **editable deployment files**:
+**Ship is not part of PyPI 0.4.0 yet.** After this change reaches main,\ninstall the GitHub development version or use the next published release.\n\nAfter building and testing your application, generate **editable deployment files**:
 
 ```bash
 qpyserve ship
