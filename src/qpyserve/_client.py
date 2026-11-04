@@ -245,6 +245,8 @@ async function request<T>(
   if (response.status === 204 || response.status === 205 || method === "HEAD") {
     return undefined as T;
   }
+  const contentType = response.headers.get("content-type") || "";
+  if (!contentType.includes("json")) return undefined as T;
   return await response.json() as T;
 }
 """
