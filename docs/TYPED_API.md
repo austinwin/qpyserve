@@ -1,6 +1,6 @@
-# QPyServe Typed API — FastAPI to a browser client
+# QPyServe Typed API — FastAPI to a browser client (0.5.0)
 
-QPyServe uses FastAPI's existing OpenAPI schema to generate a small TypeScript
+Available starting with **QPyServe 0.5.0**. QPyServe uses FastAPI's existing OpenAPI schema to generate a small TypeScript
 client. It keeps your FastAPI routes and Pydantic models as the source of truth.
 There is no separate schema language, hosted generator or runtime dependency.
 
