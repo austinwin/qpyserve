@@ -45,17 +45,42 @@ def _stop_process(process: subprocess.Popen) -> None:
 
 
 
-def _dev_process_command(project_dir: Path, port: int) -> list[str]:
-    """Start Uvicorn as a supervised reload process with inherited trace config."""
-    return [
+def _dev_process_command(
+    project_dir: Path, port: int, *, reload: bool = True,
+) -> list[str]:
+    """Launch the API; reload is owned by Uvicorn on POSIX."""
+    command = [
         sys.executable, "-m", "uvicorn", "qpyserve._entry:create_app",
         "--factory", "--host", "127.0.0.1", "--port", str(port),
-        "--reload", "--reload-dir", str(project_dir),
-        "--reload-include", "*.py",
-        "--reload-exclude", "node_modules/*",
-        "--reload-exclude", "dist/*",
-        "--reload-exclude", ".qpyserve.vite.config.mjs",
     ]
+    if reload:
+        command += [
+            "--reload", "--reload-dir", str(project_dir),
+            "--reload-include", "*.py",
+            "--reload-exclude", "node_modules/*",
+            "--reload-exclude", "dist/*",
+            "--reload-exclude", ".qpyserve.vite.config.mjs",
+        ]
+    return command
+
+
+def _python_snapshot(project_dir: Path) -> tuple[tuple[str, int, int], ...]:
+    """Detect added, changed and removed Python files while pruning large JS trees."""
+    excluded = {"node_modules", ".git", ".venv", "venv", "dist",
+                "build", "__pycache__", ".tox", ".mypy_cache"}
+    results: list[tuple[str, int, int]] = []
+    for folder, dirs, names in os.walk(project_dir):
+        dirs[:] = [name for name in dirs if name not in excluded and not name.startswith(".")]
+        for name in names:
+            if not name.endswith(".py"):
+                continue
+            file = Path(folder) / name
+            try:
+                stat = file.stat()
+            except OSError:
+                continue
+            results.append((str(file.relative_to(project_dir)), stat.st_mtime_ns, stat.st_size))
+    return tuple(sorted(results))
 
 
 def _supervise_dev(
@@ -63,11 +88,14 @@ def _supervise_dev(
     frontend_root: Path,
     project_dir: Path,
     port: int,
+    *,
+    reload_on_change: bool | None = None,
 ) -> None:
-    """Keep both child processes alive; stop the entire tree when either exits.
+    """Supervise frontend/backend processes and stop them together on failure.
 
-    Uvicorn owns Python reloads; Vite owns frontend HMR. The Python parent owns
-    process lifecycle and cannot silently leave an orphan when a child crashes.
+    Linux uses Uvicorn's Python reloader. Windows uses a small file snapshot to
+    restart only the backend; Uvicorn's Windows CTRL_C_EVENT can otherwise
+    interrupt other console processes.
     """
     # Uvicorn reload uses console control events on Windows. Separate consoles
     # prevent a worker reload from interrupting QPyServe or its parent shell.
@@ -91,12 +119,16 @@ def _supervise_dev(
             signal.signal(signum, request_shutdown)
         except ValueError:
             previous_handlers.pop(signum, None)
+    if reload_on_change is None:
+        reload_on_change = os.name == "nt"
+    snapshot = _python_snapshot(project_dir) if reload_on_change else ()
+    last_scan = time.monotonic()
+    api_command = _dev_process_command(project_dir, port + 1, reload=not reload_on_change)
     try:
         vite = subprocess.Popen(vite_cmd, cwd=frontend_root, **kwargs)
         children.append(("Vite", vite))
-        backend = subprocess.Popen(_dev_process_command(project_dir, port + 1),
-                                   cwd=project_dir, **kwargs)
-        children.append(("FastAPI", backend))
+        backend = subprocess.Popen(api_command, cwd=project_dir, **kwargs)
+        children.append(("FastAPI", backend)
         print(
             f"[qpyserve] http://localhost:{port} (Vite + FastAPI, supervised)",
             flush=True,
@@ -109,6 +141,15 @@ def _supervise_dev(
                         f"{name} exited with status {status}. "
                         "Check the error above, fix the cause, and run python main.py again."
                     )
+            if reload_on_change and time.monotonic() - last_scan >= 0.8:
+                last_scan = time.monotonic()
+                current = _python_snapshot(project_dir)
+                if current != snapshot:
+                    snapshot = current
+                    print("[qpyserve] Python source changed: restarting FastAPI", flush=True)
+                    _stop_process(children[1][1])
+                    replacement = subprocess.Popen(api_command, cwd=project_dir, **kwargs)
+                    children[1] = ("FastAPI", replacement)
             time.sleep(0.2)
     except KeyboardInterrupt:
         print("\n[qpyserve] Stopping development servers", flush=True)

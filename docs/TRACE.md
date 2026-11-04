@@ -62,3 +62,10 @@ supervisor. When a child exits, both process trees are stopped and the launcher
 reports which component exited. Python reloads remain handled by Uvicorn and
 frontend HMR by Vite; changes do not restart the other development server.
 This is not a production process supervisor.
+
+### Windows reload
+
+On Windows, QPyServe detects changes in project Python files and restarts only
+the FastAPI child process. This avoids Windows Uvicorn reload control signals
+that can affect other console processes. Linux/macOS retain Uvicorn's native
+reload. JavaScript HMR remains owned by Vite on every platform.

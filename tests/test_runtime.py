@@ -139,3 +139,49 @@ def test_dev_backend_uses_project_reload_scope(tmp_path):
     assert command[command.index("--reload-dir") + 1] == str(tmp_path)
     assert command[command.index("--port") + 1] == "2222"
     assert "node_modules/*" in command
+
+
+
+def test_windows_reload_command_does_not_launch_uvicorn_reloader(tmp_path):
+    from qpyserve._runtime import _dev_process_command
+
+    command = _dev_process_command(tmp_path, 1112, reload=False)
+    assert "--reload" not in command
+    assert command[command.index("--port") + 1] == "1112"
+
+
+def test_python_snapshot_tracks_changes_but_ignores_js_dependencies(tmp_path):
+    from qpyserve._runtime import _python_snapshot
+
+    (tmp_path / "main.py").write_text("a = 1")
+    original = _python_snapshot(tmp_path)
+    (tmp_path / "node_modules").mkdir()
+    (tmp_path / "node_modules" / "ignored.py").write_text("data = 1")
+    assert _python_snapshot(tmp_path) == original
+    (tmp_path / "main.py").write_text("a = 123")
+    assert _python_snapshot(tmp_path) != original
+    (tmp_path / "main.py").unlink()
+    assert _python_snapshot(tmp_path) == ()
+
+
+def test_supervisor_restarts_backend_only_on_python_edit(tmp_path, monkeypatch):
+    from qpyserve import _runtime
+
+    class Process:
+        def poll(self):
+            return None
+
+    vite, first, reloaded = Process(), Process(), Process()
+    processes = iter([vite, first, reloaded])
+    stopped = []
+    snapshots = iter([("before",), ("after",)])
+    tick = iter(range(100))
+    monkeypatch.setattr(_runtime.subprocess, "Popen",
+                        lambda *_a, **_kw: next(processes))
+    monkeypatch.setattr(_runtime, "_stop_process", stopped.append)
+    monkeypatch.setattr(_runtime, "_python_snapshot", lambda *_a: next(snapshots))
+    monkeypatch.setattr(_runtime.time, "monotonic", lambda: next(tick))
+    monkeypatch.setattr(_runtime.time, "sleep",
+                        lambda _: (_ for _ in ()).throw(KeyboardInterrupt))
+    _runtime._supervise_dev(["npm"], tmp_path, tmp_path, 1111, reload_on_change=True)
+    assert stopped == [first, reloaded, vite]

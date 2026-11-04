@@ -157,5 +157,6 @@ Read [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), and [RELEASING.
 
 When using Vite, QPyServe supervises the frontend dev server and the FastAPI
 reload process together. If either crashes, it exits with a clear error and
-cleans up both process trees. Python edits reload Uvicorn; frontend edits use
+cleans up both process trees. Python edits restart the API (Uvicorn's reloader on Linux/macOS,
+QPyServe's lightweight restart watcher on Windows); frontend edits use
 Vite HMR. Production process supervision remains the deployment platform's job.
