@@ -76,7 +76,8 @@ def port_closed(port: int) -> bool:
 
 
 def main() -> None:
-    with tempfile.TemporaryDirectory(prefix="qpyserve-smoke-") as temp:
+    with tempfile.TemporaryDirectory(prefix="qpyserve-smoke-",
+                                         ignore_cleanup_errors=os.name == "nt") as temp:
         root = Path(temp)
         project = create_project(root / "app", template="react")
         port = two_ports()

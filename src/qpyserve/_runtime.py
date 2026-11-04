@@ -69,7 +69,9 @@ def _supervise_dev(
     Uvicorn owns Python reloads; Vite owns frontend HMR. The Python parent owns
     process lifecycle and cannot silently leave an orphan when a child crashes.
     """
-    kwargs = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    # Uvicorn reload uses console control events on Windows. Separate consoles
+    # prevent a worker reload from interrupting QPyServe or its parent shell.
+    kwargs = ({"creationflags": subprocess.CREATE_NEW_CONSOLE}
               if os.name == "nt" else {"start_new_session": True})
     children: list[tuple[str, subprocess.Popen]] = []
     previous_handlers = {}
