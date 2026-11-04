@@ -9,6 +9,8 @@ from __future__ import annotations
 from collections import deque
 from datetime import datetime, timezone
 from importlib.resources import files
+from functools import lru_cache
+import inspect
 import json
 from pathlib import Path
 import re
@@ -19,6 +21,7 @@ from typing import Any, Iterable
 from uuid import uuid4
 
 from fastapi import FastAPI, HTTPException
+from fastapi.routing import APIRoute
 from fastapi.responses import JSONResponse, Response
 from starlette.requests import Request
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -53,6 +56,28 @@ def _exception_location(exc: Exception, project_root: Path) -> str | None:
             if relative.suffix == ".py" and not any(part.startswith(".") for part in relative.parts):
                 return f"{relative.as_posix()}:{frame.lineno}"
     return None
+
+
+
+@lru_cache(maxsize=256)
+def _endpoint_location(endpoint: Any, project_root: Path) -> str | None:
+    """Find the real Python handler source without exposing absolute paths."""
+    try:
+        unwrapped = inspect.unwrap(endpoint)
+        filename = inspect.getsourcefile(unwrapped)
+        if not filename:
+            return None
+        source = Path(filename).resolve()
+        root = project_root.resolve()
+        if not source.is_relative_to(root):
+            return None
+        relative = source.relative_to(root)
+        if relative.suffix != ".py" or any(part.startswith(".") for part in relative.parts):
+            return None
+        _, lineno = inspect.getsourcelines(unwrapped)
+        return f"{relative.as_posix()}:{lineno}"
+    except (OSError, TypeError, ValueError):
+        return None
 
 
 def classify_failure(status: int, exception: bool = False) -> str:
@@ -142,6 +167,12 @@ class TraceMiddleware:
         finally:
             route = scope.get("route")
             template = getattr(route, "path", None)
+            route_info: dict[str, str] = {}
+            if isinstance(route, APIRoute):
+                route_info["operation_id"] = route.operation_id or route.unique_id
+                source = _endpoint_location(route.endpoint, self.project_root)
+                if source:
+                    route_info["endpoint_source"] = source
             self.store.record({
                 "id": request_id,
                 "time": datetime.now(timezone.utc).isoformat(timespec="milliseconds"),
@@ -150,6 +181,7 @@ class TraceMiddleware:
                 "status": status,
                 "category": classify_failure(status, bool(error)),
                 "duration_ms": round((time.perf_counter() - started) * 1000, 2),
+                **route_info,
                 **error,
             })
 

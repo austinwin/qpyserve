@@ -33,3 +33,9 @@ QPyServe is an intentionally thin integration layer. Maintain the smallest publi
 - `qpyserve ship` must never overwrite a user's deployment files, access credentials, or claim to have deployed anything.
 - Generated containers must run in production mode, bind to 0.0.0.0, honor `PORT`, and exclude local secrets/build artifacts from Docker context.
 - Preserve React/Vue/HTML starter compatibility; generated deployment assets should be ordinary editable files.
+
+- Typed API generation is opt-in and uses FastAPI OpenAPI only; never duplicate the FastAPI router or Pydantic validation system.
+- Generate only under frontend/, protect manually written files and symlinks, and do not rewrite identical generated files.
+- Unsupported non-JSON, cookie and streaming operations must be reported; never generate incorrect client types.
+- Generated browser code uses same-origin native fetch so dev Trace correlation works without extra telemetry.
+- Generated TS must be verified with TypeScript type checking and live API/trace tests; production must not regenerate client source.

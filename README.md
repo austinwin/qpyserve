@@ -149,6 +149,29 @@ workloads, review `docker-start.py`, requirements, the Docker build logs,
 and your API's authorization rules. Existing deployment files are never
 overwritten by `ship`. See [Render's free-plan limitations](https://render.com/docs/free).
 
+## Typed FastAPI client for React/Vue (unreleased)
+
+You can opt in to automatic TypeScript API generation with no additional
+runtime dependency:
+
+```python
+run(app, frontend="frontend", client="frontend/src/qpyserve-api.ts")
+```
+
+Starting `python main.py` generates a typed `api` object directly from
+FastAPI's OpenAPI schema before Vite starts. Updating your Python routes or
+Pydantic models regenerates the client on backend reload. The browser can call
+`api.getSensor({ path: { sensor_id: 12 } })` with typed inputs and responses.
+
+Alternatively run `qpyserve api --app main:app` or use
+`qpyserve api --check --json` in CI/AI workflows. Generation never overwrites
+files that lack its marker, and unsupported operations are explicitly reported.
+QPyServe Trace correlates generated API failures with the matching OpenAPI
+operation ID and safe project-relative Python handler location.
+
+See [Typed API documentation](docs/TYPED_API.md). This feature is currently on
+GitHub `main` after merge, **not part of the PyPI 0.4.0 release**.
+
 ## Production
 
 Build the frontend during CI/CD with `python main.py --build`. Run `python main.py --prod` with prebuilt assets. Node.js isn't required in the production runtime for static frontends. Plain HTML/JS needs no build.

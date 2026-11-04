@@ -160,3 +160,100 @@ jobs:
       - name: Stop container
         if: always()
         run: docker rm -f qps-ship-test || true
+
+  typed-api-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -e .
+      - name: Generate real Pydantic + FastAPI typed API
+        run: |
+          qpyserve new /tmp/qps-typed --template react
+          cat > /tmp/qps-typed/api_typed.py <<'PY'
+          from fastapi import FastAPI, HTTPException
+          from pydantic import BaseModel
+
+          app = FastAPI()
+          class Sensor(BaseModel):
+              sensor_id: int
+              pressure: float
+              description: str | None = None
+
+          @app.get("/api/sensors/{sensor_id}", response_model=Sensor, operation_id="getSensor")
+          def get_sensor(sensor_id: int, verbose: bool = False):
+              return Sensor(sensor_id=sensor_id, pressure=41.5)
+
+          @app.post("/api/sensors", response_model=Sensor, operation_id="createSensor")
+          def create_sensor(sensor: Sensor):
+              return sensor
+
+          @app.get("/api/failure", operation_id="testFailure")
+          def fail():
+              raise HTTPException(503)
+          PY
+          qpyserve api /tmp/qps-typed --app api_typed:app --json
+          qpyserve api /tmp/qps-typed --app api_typed:app --check
+      - name: Typecheck real API contracts and exercise browser fetch
+        run: |
+          cat > /tmp/qps-typed/frontend/src/check.ts <<'TS'
+          import { api, QPyServeApiError, type Schemas } from "./qpyserve-api";
+
+          // These must typecheck or fail at compile time without invoking fetch.
+          if (false) {
+            const req: Promise<Schemas["Sensor"]> = api.getSensor({
+              path: { sensor_id: 7 }, query: { verbose: true },
+            });
+            void req;
+            // @ts-expect-error numeric path parameter cannot be a string
+            api.getSensor({ path: { sensor_id: "bad" } });
+            // @ts-expect-error missing required Pydantic JSON body
+            api.createSensor({});
+            // @ts-expect-error incorrect JSON body schema
+            api.createSensor({ body: { sensor_id: 2, pressure: "wrong" } });
+            // @ts-expect-error nonexistent endpoint
+            api.unknownEndpoint();
+          }
+          const calls: Array<{ input: string; init: RequestInit | undefined }> = [];
+          globalThis.fetch = async (input, init) => {
+            calls.push({ input: String(input), init });
+            return new Response(JSON.stringify({ sensor_id: 7, pressure: 41.5 }), {
+              status: 200, headers: { "content-type": "application/json" },
+            });
+          };
+          void (async () => {
+            const reading = await api.getSensor({
+              path: { sensor_id: 7 }, query: { verbose: true },
+            });
+            if (reading.sensor_id !== 7) throw Error("bad JSON response");
+            if (calls[0].input !== "/api/sensors/7?verbose=true") throw Error("bad URL");
+            await api.createSensor({ body: { sensor_id: 7, pressure: 41.5 } });
+            if (calls[1].input !== "/api/sensors") throw Error("bad POST URL");
+            if (calls[1].init?.body !== JSON.stringify({ sensor_id: 7, pressure: 41.5 })) {
+              throw Error("bad POST body");
+            }
+            globalThis.fetch = async () => new Response("temporary", {
+              status: 503,
+              headers: { "x-qpyserve-trace-id": "0123456789abcdef" },
+            });
+            try {
+              await api.testFailure();
+              throw Error("expected failure");
+            } catch (error) {
+              if (!(error instanceof QPyServeApiError)) throw error;
+              if (error.status !== 503 || error.traceId !== "0123456789abcdef") {
+                throw Error("missing correlated trace");
+              }
+            }
+          })();
+          TS
+          cd /tmp/qps-typed/frontend
+          npm install --no-audit --no-fund
+          npm install --no-save --no-package-lock typescript@5.9.3
+          ./node_modules/.bin/tsc --strict --skipLibCheck --target ES2022 --module commonjs --moduleResolution node --lib DOM,ES2022 --outDir /tmp/qps-typed-compiled src/check.ts
+          node /tmp/qps-typed-compiled/check.js

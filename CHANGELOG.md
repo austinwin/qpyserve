@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased — Typed API contracts
+
+### Added
+- Opt-in `client=` argument to `run(...)` generates typed TypeScript from FastAPI OpenAPI before Vite starts and updates it when Python routes reload.
+- `qpyserve api` for explicit generation and `--check --json` for drift detection and AI/CI workflows.
+- Typed Pydantic schemas, JSON bodies, path/query/header parameters, successful JSON responses, and a typed client error exposing the development trace ID.
+- Trace now reports OpenAPI operation IDs and safe project-relative endpoint source references, and connects those to failed browser requests.
+- Unsupported multipart, cookie, and non-JSON operations are reported rather than silently misrepresented.
+
+### Compatibility
+- Existing apps remain unchanged unless `client=` is explicitly enabled. No new Python runtime dependencies or production instrumentation.
+- Generated files with a different owner marker are never overwritten; production does not regenerate TypeScript.
+
+
 ## Unreleased — Ship: portable deployment assets
 
 ### Added

@@ -180,3 +180,31 @@ def test_trace_client_contains_configured_prefixes():
     assert "traceHeaders" in js
     assert "XMLHttpRequest" in js
     assert "qpyserve-trace-v2" in js
+
+def test_trace_links_generated_operation_to_project_handler() -> None:
+    from pathlib import Path
+
+    app = FastAPI()
+
+    @app.get("/api/contracts/{item_id}", operation_id="fetchContract")
+    def endpoint(item_id: str):
+        return {"id": item_id}
+
+    project_root = Path(__file__).resolve().parents[1]
+    install_trace(app, ["/api"], project_root=project_root)
+    client = TestClient(app)
+    response = client.get("/api/contracts/private-account-123")
+    assert response.status_code == 200
+    record = client.get("/__qpyserve/trace").json()["requests"][-1]
+    assert record["operation_id"] == "fetchContract"
+    assert record["endpoint_source"].startswith("tests/test_trace.py:")
+    assert str(project_root) not in str(record)
+    assert "private-account-123" not in str(record)
+
+
+def test_trace_browser_js_exports_endpoint_link() -> None:
+    app = FastAPI()
+    install_trace(app, ["/api"])
+    js = TestClient(app).get("/__qpyserve/trace.js").text
+    assert "endpoint_source: match.endpoint_source" in js
+    assert "operation_id: match.operation_id" in js

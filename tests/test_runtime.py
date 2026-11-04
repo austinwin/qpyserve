@@ -186,3 +186,39 @@ def test_supervisor_restarts_backend_only_on_python_edit(tmp_path, monkeypatch):
                         lambda _: (_ for _ in ()).throw(KeyboardInterrupt))
     _runtime._supervise_dev(["npm"], tmp_path, tmp_path, 1111, reload_on_change=True)
     assert stopped == [first, reloaded, vite]
+
+
+def test_build_generates_client_before_frontend_bundle(tmp_path, monkeypatch) -> None:
+    import qpyserve._runtime as rt
+
+    frontend = tmp_path / "frontend"
+    (frontend / "src").mkdir(parents=True)
+    (frontend / "package.json").write_text('{"devDependencies":{"vite":"^6"}}')
+    (frontend / "index.html").write_text("<html></html>")
+    (tmp_path / "main.py").write_text("# entrypoint")
+    app = FastAPI()
+
+    @app.get("/api/reading", operation_id="getReading")
+    def reading():
+        return {"reading": 42}
+
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "main.py"), "--build"])
+    observed = []
+
+    def fake_build(_frontend):
+        source = (frontend / "src/qpyserve-api.ts").read_text()
+        assert '"getReading"' in source
+        observed.append("built-after-generated")
+
+    monkeypatch.setattr(rt, "build_frontend", fake_build)
+    run(app, frontend=frontend, client="frontend/src/qpyserve-api.ts")
+    assert observed == ["built-after-generated"]
+
+
+def test_typed_client_requires_vite(tmp_path, monkeypatch) -> None:
+    frontend = tmp_path / "frontend"
+    frontend.mkdir()
+    (frontend / "index.html").write_text("<html></html>")
+    monkeypatch.setattr(sys, "argv", [str(tmp_path / "main.py")])
+    with pytest.raises(ValueError, match="requires a Vite frontend"):
+        run(FastAPI(), frontend=frontend, client="frontend/src/qpyserve-api.ts")
