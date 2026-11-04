@@ -120,3 +120,63 @@ def test_websocket_is_uninstrumented():
     with client.websocket_connect("/ws") as socket:
         assert socket.receive_text() == "ok"
     assert client.get("/__qpyserve/trace").json()["requests"] == []
+
+
+def test_failure_categories_cover_real_http_cases():
+    from qpyserve._trace import classify_failure
+
+    assert classify_failure(200) == "ok"
+    assert classify_failure(401) == "access_denied"
+    assert classify_failure(404) == "not_found"
+    assert classify_failure(429) == "rate_limited"
+    assert classify_failure(503) == "server_error"
+    assert classify_failure(500, exception=True) == "python_exception"
+
+
+def test_browser_supplied_id_is_correlated_for_success_and_crash():
+    client = traced_client()
+    trace_id = "0123456789abcdef"
+    ok = client.get("/api/items/private", headers={"x-qpyserve-trace-id": trace_id})
+    assert ok.headers["x-qpyserve-trace-id"] == trace_id
+    client.get("/api/crash", headers={"x-qpyserve-trace-id": trace_id})
+    rows = client.get("/__qpyserve/trace").json()["requests"]
+    assert [row["id"] for row in rows] == [trace_id, trace_id]
+    assert rows[-1]["category"] == "python_exception"
+
+
+def test_invalid_client_ids_cannot_inject_headers_or_reports():
+    client = traced_client()
+    result = client.get("/api/items/secret", headers={"x-qpyserve-trace-id": "bad\r\nX-Evil: yes"})
+    assert result.status_code == 200
+    assert result.headers["x-qpyserve-trace-id"] != "bad\r\nX-Evil: yes"
+    assert len(result.headers["x-qpyserve-trace-id"]) == 16
+
+
+def test_source_reference_is_relative_and_hidden_paths_are_not_exported(tmp_path):
+    from qpyserve._trace import _exception_location
+
+    module = tmp_path / "module.py"
+    module.write_text("def fail():\n    raise RuntimeError('sensitive')\nfail()\n")
+    try:
+        exec(compile(module.read_text(), str(module), "exec"), {})
+    except RuntimeError as exc:
+        source = _exception_location(exc, tmp_path)
+        assert source == "module.py:2"
+        assert str(tmp_path) not in source
+
+
+def test_cross_site_browser_snapshot_is_rejected():
+    client = traced_client()
+    result = client.get("/__qpyserve/trace", headers={"sec-fetch-site": "cross-site"})
+    assert result.status_code == 403
+
+
+def test_trace_client_contains_configured_prefixes():
+    app = FastAPI()
+    install_trace(app, ["/api", "/reports", "/__qpyserve"])
+    js = TestClient(app).get("/__qpyserve/trace.js").text
+    assert '"\\/reports"' not in js
+    assert '"/reports"' in js
+    assert "traceHeaders" in js
+    assert "XMLHttpRequest" in js
+    assert "qpyserve-trace-v2" in js

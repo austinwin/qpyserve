@@ -27,7 +27,8 @@ def create_app() -> FastAPI:
     if not isinstance(app, FastAPI):
         raise TypeError(f"{config['app_import']} does not resolve to a FastAPI app")
     if config.get("trace", False):
-        install_trace(app, config.get("api_paths", ("/api",)))
+        install_trace(app, config.get("api_paths", ("/api",)),
+                      project_root=config.get("project_dir", "."))
     if config["serve_frontend"]:
         attach_frontend(app, config["static_directory"], live_reload=config["live_reload"],
                         api_paths=config.get("api_paths"),

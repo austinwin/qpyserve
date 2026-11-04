@@ -129,6 +129,7 @@ def run(
 
     config = {
         "app_import": app_import,
+        "project_dir": str(project_dir),
         "serve_frontend": not (vite and mode == "development"),
         "static_directory": str(static_directory),
         "live_reload": not vite and mode == "development",
