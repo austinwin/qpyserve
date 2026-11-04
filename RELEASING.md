@@ -1,47 +1,56 @@
-# Releasing qpyserve to PyPI
+# Releasing QPyServe to PyPI
 
-The package is published from GitHub Actions using **PyPI Trusted Publishing (OIDC)**.
-Do **not** commit a PyPI API token, add one to the repo, or upload from an untrusted machine.
+QPyServe is published through GitHub Actions using **PyPI Trusted Publishing (OIDC)**, not a stored PyPI token. The normal release path is a versioned Git tag matching the Python package version.
 
-## First-time setup (one-time, project owner)
+## PyPI publisher configuration
 
-1. Sign in to https://pypi.org/. Enable 2FA if you have not already.
-2. If `qpyserve` is not yet a project on PyPI, open the PyPI account **Publishing** page and add a **pending publisher** for a new project.
-   If it already exists **and you own it**, use its **Manage → Publishing** page instead.
-3. Enter the **exact** GitHub trusted publisher values:
+The existing `qpyserve` PyPI project must have this trusted publisher configured:
 
-   | Field | Value |
-   | --- | --- |
-   | PyPI project name (pending project only) | `qpyserve` |
-   | Owner | `austinwin` |
-   | Repository | `qpyserve` |
-   | Workflow filename | `publish.yml` |
-   | Environment | `pypi` |
+| Field | Value |
+| --- | --- |
+| PyPI project | `qpyserve` |
+| GitHub owner | `austinwin` |
+| GitHub repository | `qpyserve` |
+| Workflow filename | `publish.yml` |
+| GitHub environment | `pypi` |
 
-4. In GitHub repo **Settings → Environments**, configure the `pypi` environment.
-   Restrict deployment to the default branch and release tags, and add reviewer approvals if available.
-   The workflow references this environment.
-5. From https://github.com/austinwin/qpyserve/actions/workflows/publish.yml
-   select **Run workflow** on `main` to publish the first release.
-6. Confirm the **Upload to PyPI** job succeeds and verify the public project:
-   https://pypi.org/project/qpyserve/
-7. In a fresh Python virtual environment, verify:
-   `python -m pip install qpyserve==<released-version>` and `python -c "import qpyserve; print(qpyserve.__version__)"`.
+Use the PyPI project **Manage → Publishing** page to inspect the configuration. Protect the GitHub `pypi` environment with suitable approval/deployment rules. Do not commit API tokens or upload artifacts from an untrusted workstation.
 
-**Note:** A pending publisher does **not** reserve a PyPI project name. If the project name
-is taken or reserved, PyPI will refuse the upload; do not assume the name is available based
-only on search results.
+## Release checklist
 
-## Subsequent releases
+1. Confirm the previous PyPI release and select a **new** version; published version numbers cannot be reused.
+2. Update `[project].version` in `pyproject.toml` and `__version__` in `src/qpyserve/__init__.py`. These must match.
+3. Update `README.md`, `CHANGELOG.md`, feature guides, examples, and tests. Avoid leaving `unreleased` references for features included in the new version.
+4. Run `python -m ruff check src tests examples`, `python -m pytest -q`, `python -m build`, and `python -m twine check dist/*`. Wait for all Linux/Windows, React/Vite, typed-client, and Docker CI checks to pass.
+5. Merge the release PR to `main`; create a Git tag such as `v0.5.0` on the exact release commit. The `publish.yml` workflow checks that the tag matches `pyproject.toml`.
+6. Confirm **both** the build and **Upload to PyPI** jobs succeed. A GitHub environment may require manual approval before upload.
+7. Verify the release on [PyPI](https://pypi.org/project/qpyserve/) and with a clean installation:
 
-1. Bump `[project].version` in `pyproject.toml` and `__version__` in `src/qpyserve/__init__.py`.
-2. Update tests and docs, add the new version's changes and a runnable example to `CHANGELOG.md` and `README.md`, and merge to `main`.
-3. Create/push a matching tag, e.g. `v0.1.1`, or use **Run workflow** on `main`.
-   Tags are checked against the version in `pyproject.toml`.
-4. Confirm the build and publication jobs pass and installation from PyPI works.
+   ```bash
+   python -m pip install --no-cache-dir qpyserve==0.5.0
+   python -c "import qpyserve; print(qpyserve.__version__)"
+   qpyserve --version
+   qpyserve new smoke-app --template react
+   cd smoke-app
+   qpyserve api --check --json  # Expected drift before first generation
+   qpyserve api
+   qpyserve api --check --json  # Should now pass
+   ```
 
-The release workflow runs Python tests, builds the React/Vite example, builds a wheel and
-sdist, validates distribution metadata, and publishes with short-lived OIDC credentials.
-It does not use a stored PyPI token.
+8. Announce release notes and point users to the version-specific [changelog](CHANGELOG.md). Check the release tag and PyPI artifacts refer to the same code.
 
-Never reuse a PyPI version: release versions are immutable.
+## QPyServe 0.5.0 publishing note
+
+The publishing workflow has a **temporary, tightly gated release commit trigger** for `release: QPyServe v0.5.0` on `main` to publish this particular release using the existing trusted-publisher flow. That trigger also creates `v0.5.0` from the verified release commit if it is not already present. It will be removed immediately after publication.
+
+For future versions, use the standard annotated/signed tag and the existing tag-triggered `publish.yml` workflow. Do **not** leave a general publish-on-every-main-push trigger enabled.
+
+## Troubleshooting
+
+- **Package version already exists:** do not overwrite or reuse it; bump the version, update the changelog, and rerun a new release.
+- **OIDC trusted-publisher failure:** verify the PyPI owner/repository/workflow/environment match exactly and check the GitHub `pypi` environment approval rules.
+- **Build succeeded, upload pending:** approve the environment if policy requires it; do not claim publication until the upload job succeeds.
+- **Install returns an older version:** install the explicit new version with `--no-cache-dir`, inspect the public PyPI release, and verify you are using the intended index.
+- **Tag and version mismatch:** correct the version and create a new release tag; never retarget an already published release without carefully reconciling artifacts.
+
+The release workflow builds a wheel and sdist, runs unit and frontend checks, verifies distribution contents and metadata, and publishes with short-lived OIDC credentials.

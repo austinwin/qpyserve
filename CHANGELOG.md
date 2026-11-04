@@ -1,33 +1,49 @@
 # Changelog
 
-## Unreleased — Typed API contracts
+Changes are grouped by published PyPI version. QPyServe follows an early-alpha release cycle.
 
-### Added
-- Opt-in `client=` argument to `run(...)` generates typed TypeScript from FastAPI OpenAPI before Vite starts and updates it when Python routes reload.
-- `qpyserve api` for explicit generation and `--check --json` for drift detection and AI/CI workflows.
-- Typed Pydantic schemas, JSON bodies, path/query/header parameters, successful JSON responses, and a typed client error exposing the development trace ID.
-- Trace now reports OpenAPI operation IDs and safe project-relative endpoint source references, and connects those to failed browser requests.
-- Unsupported multipart, cookie, and non-JSON operations are reported rather than silently misrepresented.
+## 0.5.0 — Typed API, Ship, and updated React/Vite example (2026-11-04)
 
-### Compatibility
-- Existing apps remain unchanged unless `client=` is explicitly enabled. No new Python runtime dependencies or production instrumentation.
-- Generated files with a different owner marker are never overwritten; production does not regenerate TypeScript.
+### Added: Typed API
 
+- Opt-in `client=` in `run(...)` generates a TypeScript browser client from FastAPI OpenAPI and Pydantic schema definitions; generated types cover JSON request/response models and path, query, and header parameters.
+- Generate a client with `qpyserve api [directory] --app main:app`; use `--check --json` to fail CI when the generated file is stale.
+- Regenerate on Python backend restart during development, or before `--build` for Vite frontends. Generated output is deterministic, written atomically, and refuses to overwrite hand-written files.
+- `QPyServeApiError` exposes the HTTP status, operation ID, and optional Trace ID. Unsupported operation types (multipart, streaming/binary, non-JSON responses, cookie parameters, external references) appear in the skip report.
 
-## Unreleased — Ship: portable deployment assets
+### Added: Ship
 
-### Added
-- `qpyserve ship` creates an editable Dockerfile, a protective `.dockerignore`, an explicit production `docker-start.py`, and a Render Blueprint.
-- HTML and Vite (npm, pnpm, Yarn, Bun) support with multi-stage frontend builds where needed.
-- `--app`, `--name`, and `--json` options for nonstandard entry points and AI-assisted workflows.
-- Non-destructive generation, production-only startup on the hosting provider `PORT`, and regression coverage for package managers and file collisions.
+- `qpyserve ship` generates a reviewable Dockerfile, credential-aware `.dockerignore`, `docker-start.py`, and `render.yaml` for HTML, React, Vue, or other Vite projects.
+- Multi-stage Vite builds support npm, pnpm, Yarn, and Bun. The production Python server respects the hosting provider's `PORT`.
+- The generator is non-destructive and exposes `--app`, `--name`, and `--json` options for custom projects and AI-assisted workflows.
+- Docker-based CI verifies a built React frontend, FastAPI routes, health endpoint, and disabled production Trace.
 
-### Limitations
-- `ship` prepares files but does not create an account, publish a repository, deploy a service, guarantee production readiness, or provide persistent storage.
-- Generated Render configuration uses a free preview instance; review authentication, dependencies, storage, cost and configuration before going live.
+### Improved: Trace and tooling
 
+- Trace records OpenAPI operation IDs and safe project-relative Python handler references, linking them to browser errors through the existing validated request ID.
+- Added TypeScript compilation and actual mocked-fetch checks for generated API contracts, including invalid-argument rejection, correct encoding, and correlated HTTP failures.
+- Updated the React example to React 19.3.1, React DOM 19.3.1, Vite 8.3.5, and `@vitejs/plugin-react` 6.1.2 as one compatibility-tested upgrade.
+- Upgraded GitHub Actions `checkout`, `setup-python`, `upload-artifact`, and `download-artifact` dependencies.
 
-Changes are grouped by package version. QPyServe follows an early-alpha release cycle.
+### Compatibility and limits
+
+- Existing `run(app, frontend=...)` apps work without typed client generation; `client=` remains opt-in. No new runtime Python dependencies.
+- Generated TypeScript is for Vite frontends, not Node-free plain HTML sites. Types do not replace FastAPI runtime validation or authentication.
+- `qpyserve ship` prepares deployment files but does not deploy, create an account, configure secrets, or provide persistent storage. The generated Render free plan is intended for evaluation.
+- Trace remains local, development-only, in-memory and bounded. It does not collect request/response bodies, cookies, authorization headers, query strings, or absolute filesystem paths.
+- The copied report format remains `qpyserve-trace-v2`. Reports still require developer review before sharing.
+
+### Try 0.5.0
+
+```bash
+python -m pip install --upgrade qpyserve==0.5.0
+qpyserve new demo --template react
+cd demo
+qpyserve api --app main:app
+qpyserve ship
+```
+
+See the [README](README.md), [Typed API guide](docs/TYPED_API.md), [Trace guide](docs/TRACE.md) and [Ship guide](docs/SHIP.md).
 
 ## 0.4.0 — Trace correlation and runtime reliability
 

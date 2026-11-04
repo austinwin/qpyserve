@@ -3,6 +3,9 @@ name: Publish to PyPI
 on:
   workflow_dispatch:
   push:
+    # Temporary one-time release trigger for v0.5.0. Remove after publication.
+    branches:
+      - main
     tags:
       - "v[0-9]*"
 
@@ -11,7 +14,11 @@ permissions:
 
 jobs:
   build:
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+       startsWith(github.event.head_commit.message, 'release: QPyServe v0.5.0'))
     name: Test and build distributions
     runs-on: ubuntu-latest
     steps:
@@ -36,6 +43,15 @@ jobs:
           if tag != "v" + version:
               raise SystemExit(f"Tag {tag!r} does not match package version v{version}")
           PY
+      - name: Verify one-time release commit uses exact v0.5.0
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          python - <<'PY'
+          import pathlib
+          import tomllib
+          version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]
+          assert version == "0.5.0", f"Expected 0.5.0 for the gated release; found {version}"
+          PY
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
@@ -46,6 +62,24 @@ jobs:
         run: npm install --no-audit --no-fund && npm run build
       - name: Build wheel and source distribution
         run: python -m build
+      - name: Verify 0.5.0 version and feature modules in release wheel
+        run: |
+          python - <<'PY'
+          from glob import glob
+          from zipfile import ZipFile
+          import tomllib
+          from pathlib import Path
+          version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          init = Path("src/qpyserve/__init__.py").read_text()
+          assert f'__version__ = "{version}"' in init
+          wheels = glob("dist/*.whl")
+          assert len(wheels) == 1
+          with ZipFile(wheels[0]) as wheel:
+              names = set(wheel.namelist())
+              for path in ["qpyserve/_trace_client.js", "qpyserve/_client.py",
+                           "qpyserve/_ship.py", "qpyserve/_cli.py"]:
+                  assert path in names, f"Missing packaged file: {path}"
+          PY
       - name: Verify trace client is included in release wheel
         run: |
           python - <<'PY'
@@ -62,9 +96,39 @@ jobs:
           path: dist/
           if-no-files-found: error
 
+  tag_release:
+    name: Tag verified 0.5.0 release commit
+    needs: build
+    if: >-
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      startsWith(github.event.head_commit.message, 'release: QPyServe v0.5.0')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Create v0.5.0 tag on the verified release commit
+        shell: bash
+        run: |
+          git fetch --tags
+          if git rev-parse --verify refs/tags/v0.5.0 >/dev/null 2>&1; then
+            echo "Tag v0.5.0 already exists; refusing to republish." >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -a v0.5.0 -m "QPyServe v0.5.0" "$GITHUB_SHA"
+          git push origin refs/tags/v0.5.0
+
   publish:
     name: Upload to PyPI
-    needs: build
+    needs: [build, tag_release]
+    if: >-
+      always() && needs.build.result == 'success' &&
+      (needs.tag_release.result == 'success' ||
+       needs.tag_release.result == 'skipped')
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -78,3 +142,38 @@ jobs:
           path: dist/
       - name: Publish via PyPI Trusted Publishing (OIDC)
         uses: pypa/gh-action-pypi-publish@release/v1
+
+  verify_pypi:
+    name: Verify published package from PyPI
+    needs: publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/setup-python@v7
+        with:
+          python-version: "3.12"
+      - name: Install and smoke-test version 0.5.0 from PyPI
+        shell: bash
+        run: |
+          for attempt in $(seq 1 12); do
+            if python -m pip install --no-cache-dir --index-url https://pypi.org/simple/ "qpyserve==0.5.0"; then
+              break
+            fi
+            if [ "$attempt" -eq 12 ]; then
+              echo "Version 0.5.0 did not appear on PyPI" >&2
+              exit 1
+            fi
+            sleep 10
+          done
+          python - <<'PY'
+          import qpyserve
+          from qpyserve._client import generate_client
+          from qpyserve._ship import prepare_ship
+          assert qpyserve.__version__ == "0.5.0", qpyserve.__version__
+          assert callable(generate_client)
+          assert callable(prepare_ship)
+          PY
+          qpyserve --version
+          qpyserve new /tmp/qpyserve-pypi-smoke --template react
+          qpyserve api /tmp/qpyserve-pypi-smoke --check --json || test "$?" -eq 1
+          qpyserve api /tmp/qpyserve-pypi-smoke --json
+          qpyserve api /tmp/qpyserve-pypi-smoke --check --json

@@ -6,29 +6,24 @@
 
 **One Python command. A real JavaScript frontend. A real FastAPI backend. One origin.**
 
-QPyServe connects normal FastAPI applications with plain HTML/JavaScript, React, Vue, or other Vite frontends. It handles local startup, API proxying, frontend dependencies, and production static assets without replacing either framework.
+QPyServe runs ordinary [FastAPI](https://fastapi.tiangolo.com/) applications with plain HTML/JavaScript, React, Vue, or other [Vite](https://vite.dev/)-based frontends. It keeps your frontend and backend as normal source files; it does **not** replace either framework.
 
-> **What's new in 0.4.0:** browser-to-FastAPI error correlation, safer AI-ready diagnostic reports, supervised Vite/FastAPI processes, and reliable Python reload on Windows. See the [0.4.0 changelog](https://github.com/austinwin/qpyserve/blob/main/CHANGELOG.md) and [interactive demo](https://github.com/austinwin/qpyserve/tree/main/examples/trace-demo/README.md).
+**New in 0.5.0:** Generate a typed TypeScript client from FastAPI/Pydantic (**API**), correlate browser failures with backend handlers (**Trace**), and prepare a Docker/Render deployment (**Ship**). See the [0.5.0 changelog](https://github.com/austinwin/qpyserve/blob/v0.5.0/CHANGELOG.md), [Typed API guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/TYPED_API.md), and [Ship guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/SHIP.md).
 
-## Create an app
+## Quick start
 
-Install once:
-
-```bash
-pip install qpyserve
-```
-
-Create a working HTML + FastAPI app (no Node.js):
+Install Python 3.10+ and QPyServe:
 
 ```bash
+python -m pip install --upgrade qpyserve
 qpyserve new hello
 cd hello
 python main.py
 ```
 
-Open **http://localhost:1111**. Your UI, `/api/hello`, and `/docs` share one browser origin. Click **Call Python API** to see the frontend call your backend.
+Open **http://localhost:1111**. The frontend, `/api/hello`, and FastAPI's `/docs` share a browser origin. **Plain HTML needs no Node.js.**
 
-Prefer React or Vue? Same Python, same command to run:
+For React or Vue:
 
 ```bash
 qpyserve new hello-react --template react
@@ -37,57 +32,9 @@ cd hello-react
 python main.py
 ```
 
-React and Vue development require Node.js or a compatible JS runtime/package manager. QPyServe installs missing *project* dependencies automatically and starts Vite with hot-module replacement (HMR). It does **not** silently download Node.js.
+React and Vue require Node.js or a compatible JavaScript runtime/package manager. QPyServe installs **project** dependencies when missing and starts Vite with hot-module replacement (HMR). It does not install Node.js itself.
 
-### Built for both humans and AI coding agents
-
-Every generated project is ordinary Python and frontend source code. It also includes a short `AGENTS.md` describing the API boundary, security expectations, and build commands. No proprietary UI components or code generation at runtime.
-
-For reproducible startup diagnostics:
-
-```bash
-qpyserve doctor
-qpyserve doctor --json  # For AI tools and CI
-```
-
-`doctor` checks basic development prerequisites and reports actionable errors. It is **not** a security audit or a load test. It never runs arbitrary project code.
-
-## Debug frontend and backend together: QPyServe Trace
-
-Run `python main.py` and click **Trace** in the bottom-right corner of your frontend.
-It shows recent FastAPI requests (HTTP status, route template, request ID, timing and
-exception type), browser fetch/XHR failures, and JavaScript errors in one development panel.
-Trace 0.4 correlates browser failures to backend errors and exports a redacted,
-structured report with failure categories and project-relative Python source references.
-Select **Copy AI report** to copy structured JSON for debugging with an AI assistant.
-Trace works with plain HTML, React and Vue without changing application code.
-
-Trace is enabled automatically in local development; **disabled in production**.
-It does not transmit data to external services, record request/response bodies,
-capture authorization headers or provide production APM. A copied report should be
-reviewed before sharing. To opt out, use `run(app, trace=False)`.
-
-[Trace documentation](https://github.com/austinwin/qpyserve/blob/main/docs/TRACE.md) · [Trace 0.4 example and expected results](https://github.com/austinwin/qpyserve/tree/main/examples/trace-demo/README.md) · [Release changes](https://github.com/austinwin/qpyserve/blob/main/CHANGELOG.md)
-
-### Try the 0.4.0 failure-correlation example
-
-```bash
-python -m pip install --upgrade qpyserve
-git clone https://github.com/austinwin/qpyserve.git
-cd qpyserve/examples/trace-demo
-python main.py
-```
-
-Open **http://localhost:1111**, click **503 Failed fetch** or
-**500 Python exception**, then open **Trace → Copy AI report**. The
-`qpyserve-trace-v2` JSON links the browser failure with the matching
-FastAPI request ID, category and (for Python exceptions) a safe,
-project-relative source location. The demo also includes HTTP 429 and
-XMLHttpRequest examples. No JavaScript runtime is needed for this HTML demo.
-
-## Integrate into your existing application
-
-You don't need to use a starter. Keep your existing FastAPI application and frontend folder:
+## Integrate an existing FastAPI app
 
 ```python
 from fastapi import FastAPI
@@ -95,90 +42,97 @@ from qpyserve import run
 
 app = FastAPI()
 
-
 @app.get("/api/hello")
 def hello():
     return {"message": "Hello from Python"}
-
 
 if __name__ == "__main__":
     run(app, frontend="frontend", port=1111)
 ```
 
-The frontend can call `fetch("/api/hello")` without a separate browser origin or development CORS workaround.
+Keep `frontend/` as normal HTML/JS or a Vite project. Call `fetch("/api/hello")` from the browser without adding a development CORS workaround.
 
-| Command | What it does |
+| Command | Purpose |
 | --- | --- |
-| `python main.py` | Development mode, including reload/HMR |
-| `python main.py --build` | Build a Vite frontend and exit |
-| `python main.py --prod` | Serve built assets and FastAPI from one port |
-| `python main.py --prod --build` | Build then run production mode |
+| `python main.py` | Start development with Python reload and Vite HMR |
+| `python main.py --build` | Build the Vite frontend and exit |
+| `python main.py --prod` | Serve built frontend assets and FastAPI on one port |
+| `python main.py --prod --build` | Build and start in production mode |
+| `qpyserve new myapp --template react` | Scaffold an app (also supports `html` and `vue`) |
+| `qpyserve doctor --json` | Check prerequisites without executing app code |
+| `qpyserve api [--check] [--json]` | Generate typed TypeScript or detect schema drift |
+| `qpyserve ship [--json]` | Prepare Docker/Render deployment files; **does not deploy** |
 
-**Existing projects continue to work.** QPyServe does not change your FastAPI routes or Vue/React component model. It does not require special `npm run dev` scripts or a custom framework router.
+## API: typed Python-to-TypeScript contracts
 
-See the [HTML counter](https://github.com/austinwin/qpyserve/tree/main/examples/counter-html) and [React counter](https://github.com/austinwin/qpyserve/tree/main/examples/counter-react) for more examples.
-
-## From project to deployable app: QPyServe Ship (unreleased)
-
-**Ship is not part of PyPI 0.4.0 yet.** After this change reaches main,\ninstall the GitHub development version or use the next published release.\n\nAfter building and testing your application, generate **editable deployment files**:
-
-```bash
-qpyserve ship
-# Or: qpyserve ship --app main:app --name my-water-map --json
-docker build -t my-water-map .
-docker run --rm -p 10000:10000 my-water-map
-```
-
-Open **http://localhost:10000** to test the container. `ship` generates
-`Dockerfile`, `.dockerignore`, `docker-start.py`, and `render.yaml`. It
-supports plain HTML or Vite frontends using npm, pnpm, Yarn, or Bun. Vite assets
-are built in the Docker build stage; production serves static files and FastAPI
-on a single port. `PORT` can be set by the hosting provider.
-
-To publish, review the generated files, commit and push the project to GitHub,
-then use **Render Dashboard → New → Blueprint** to connect the repository and
-deploy using `render.yaml`. This is deliberately **not** a new hosting
-platform, a cloud account connector, or an automatic deploy command.
-
-The generated Render service uses the **free** plan for preview use. Free
-services sleep when idle and have ephemeral storage; they are not suitable for
-reliable production or persistent local data. Authentication, environment
-secrets, external dependencies, DNS and billing remain your responsibility.
-Use external durable storage for databases/uploads. Before deploying real
-workloads, review `docker-start.py`, requirements, the Docker build logs,
-and your API's authorization rules. Existing deployment files are never
-overwritten by `ship`. See [Render's free-plan limitations](https://render.com/docs/free).
-
-## Typed FastAPI client for React/Vue (unreleased)
-
-You can opt in to automatic TypeScript API generation with no additional
-runtime dependency:
+**Opt in** when using Vite/React/Vue. Add `client=` to the existing `run(...)` call:
 
 ```python
 run(app, frontend="frontend", client="frontend/src/qpyserve-api.ts")
 ```
 
-Starting `python main.py` generates a typed `api` object directly from
-FastAPI's OpenAPI schema before Vite starts. Updating your Python routes or
-Pydantic models regenerates the client on backend reload. The browser can call
-`api.getSensor({ path: { sensor_id: 12 } })` with typed inputs and responses.
+QPyServe generates `frontend/src/qpyserve-api.ts` from your FastAPI OpenAPI schema **before Vite builds** and again when Python changes restart the development backend. For example, define a typed endpoint:
 
-Alternatively run `qpyserve api --app main:app` or use
-`qpyserve api --check --json` in CI/AI workflows. Generation never overwrites
-files that lack its marker, and unsupported operations are explicitly reported.
-QPyServe Trace correlates generated API failures with the matching OpenAPI
-operation ID and safe project-relative Python handler location.
+```python
+from pydantic import BaseModel
 
-See [Typed API documentation](docs/TYPED_API.md). This feature is currently on
-GitHub `main` after merge, **not part of the PyPI 0.4.0 release**.
+class Sensor(BaseModel):
+    sensor_id: int
+    pressure: float
 
-## Production
+@app.get("/api/sensors/{sensor_id}", response_model=Sensor, operation_id="getSensor")
+def get_sensor(sensor_id: int):
+    return Sensor(sensor_id=sensor_id, pressure=42.5)
+```
 
-Build the frontend during CI/CD with `python main.py --build`. Run `python main.py --prod` with prebuilt assets. Node.js isn't required in the production runtime for static frontends. Plain HTML/JS needs no build.
+Then in TypeScript:
 
-Place public services behind HTTPS termination, process supervision, and application-specific authentication and rate limiting. QPyServe stays deliberately thin: it does **not** implement an auth system, database ORM, distributed sessions, a load balancer, or deployment infrastructure.
+```ts
+import { api } from "./qpyserve-api";
 
-Optional configuration:
+const sensor = await api.getSensor({ path: { sensor_id: 12 } });
+console.log(sensor.pressure); // Typed as number
+```
+
+Or generate explicitly:
+
+```bash
+qpyserve api --app main:app
+qpyserve api --check --json  # Non-writing CI/AI check; exit 1 on drift
+```
+
+Generated files are replaced only when marked as QPyServe-generated; manually authored files are protected. The CLI `api` command **imports and executes trusted project code** to obtain the schema, unlike `doctor`. JSON request/response contracts are supported; unsupported multipart, streaming, cookie and non-JSON operations are reported as skipped, not silently typed incorrectly. Types are compile-time contracts, not runtime validation.
+
+[Full Typed API documentation](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/TYPED_API.md)
+
+## Trace: debug frontend and backend together
+
+Run `python main.py`, then click **Trace** at the bottom right of the frontend (or press **Alt+Shift+T**). It captures bounded local development metadata for FastAPI requests, same-origin `fetch`/XHR failures, and JavaScript errors. Select **Copy AI report** for structured, redacted JSON.
+
+When a generated API call fails, the report can connect the browser request ID to the FastAPI HTTP status, operation ID, route template, elapsed time and a **project-relative Python handler location** when available. For unhandled exceptions it can also include the exception type and a safe project-relative source reference.
+
+**Trace is development-only and is disabled in production.** It does not store bodies, cookies, authorization headers, query strings, or absolute filesystem paths. It is not production monitoring or automatic root-cause analysis. Review copied reports before sharing. Disable locally using `run(app, trace=False)`.
+
+[Trace guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/TRACE.md) · [Interactive failure demo](https://github.com/austinwin/qpyserve/tree/v0.5.0/examples/trace-demo/README.md)
+
+## Ship: prepare a deployable app
+
+```bash
+qpyserve ship
+# Or: qpyserve ship --app main:app --name my-app --json
+docker build -t my-app .
+docker run --rm -p 10000:10000 my-app
+```
+
+`ship` generates editable `Dockerfile`, `.dockerignore`, `docker-start.py`, and `render.yaml` files. It handles a Vite build in a Docker build stage, runs Python in the final image, and respects the hosting provider's `PORT`. It supports plain HTML and Vite frontends using npm, pnpm, Yarn or Bun.
+
+**Ship does not deploy, create accounts, push code, or provide persistent storage.** Review the files, build locally, push to GitHub, and create a Render Blueprint from `render.yaml` if you choose Render. The generated free plan is for previews: free services sleep and have ephemeral storage. For production, add authentication, HTTPS, monitoring, durable storage, and an appropriate paid service plan as needed.
+
+[Ship and deployment guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/SHIP.md)
+
+## Production and safety
+
+Build the frontend during CI/CD with `python main.py --build` and serve prebuilt assets using `python main.py --prod`. Node.js is not required in the production runtime for built Vite sites. Plain HTML needs no build.
 
 ```python
 run(
@@ -186,33 +140,26 @@ run(
     frontend="frontend",
     port=1111,
     host="127.0.0.1",
-    workers=1,             # Production only
-    api_paths=["/ws"],     # Additional API/WebSocket proxy prefixes
-    dist="dist",           # Vite output directory
-    app_import="main:app", # Only for nonstandard Python entry points
-    trace=False,           # Optional: disable local development Trace panel
+    workers=1,             # Multiple workers: production only
+    api_paths=["/ws"],     # Extra API/WebSocket proxy prefixes
+    dist="dist",           # Vite output folder
+    app_import="main:app", # For nonstandard Python entry points
+    client=None,           # Optional typed client generation (Vite)
+    trace=False,           # Optional: disable development Trace
 )
 ```
 
-Development mode binds to loopback only, and Vite development must never be exposed as a public production server. External clients use the same `/api/*` routes as the browser, subject to network and authentication rules. Multi-worker applications must use shared state where appropriate.
+Development mode binds to the local loopback interface; **never publish a Vite development server**. Production deployments need appropriate HTTPS termination, authentication, authorization, rate limiting, backup, and monitoring. QPyServe does not include a database ORM, authentication system, cloud provisioning, distributed sessions, or load balancing. Static assets under the public frontend directory are readable by clients; never put credentials there.
 
-### Security boundaries
+See [Security](https://github.com/austinwin/qpyserve/blob/v0.5.0/SECURITY.md) and [deployment guidance](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/SHIP.md). Benchmark your own workload; QPyServe makes no unsupported performance or concurrency claims.
 
-| Area | Responsibility |
-| --- | --- |
-| QPyServe | Static file serving, path protection, local Vite proxy, reload/build orchestration |
-| FastAPI / your code | Authorization, validation, authentication, CORS, sessions and business logic |
-| Deployment platform | HTTPS, monitoring, rate limiting, backups, scaling and load balancing |
+## Project resources
 
-QPyServe blocks common private/development files and escaping symlinks when serving static assets, but **anything intentionally placed in a public frontend file can be downloaded**. Never place credentials in the frontend; API routes are public unless explicitly protected. A security review of your application is still necessary. See [SECURITY.md](https://github.com/austinwin/qpyserve/blob/main/SECURITY.md).
+- [HTML counter](https://github.com/austinwin/qpyserve/tree/v0.5.0/examples/counter-html) · [React counter](https://github.com/austinwin/qpyserve/tree/v0.5.0/examples/counter-react) · [Trace example](https://github.com/austinwin/qpyserve/tree/v0.5.0/examples/trace-demo)
+- [Typed API](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/TYPED_API.md) · [Trace](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/TRACE.md) · [Ship](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/SHIP.md)
+- [Changelog](https://github.com/austinwin/qpyserve/blob/v0.5.0/CHANGELOG.md) · [Contributing](https://github.com/austinwin/qpyserve/blob/v0.5.0/CONTRIBUTING.md) · [Releasing](https://github.com/austinwin/qpyserve/blob/v0.5.0/RELEASING.md) · [Security](https://github.com/austinwin/qpyserve/blob/v0.5.0/SECURITY.md) · [AI agent guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/AGENTS.md)
 
-## Scope and performance
-
-QPyServe does not claim to be faster than FastAPI or competing frameworks. API and browser performance depend on your application, dependencies, workload, deployment, and caching. It is designed to avoid adding unnecessary abstractions. Benchmark representative workloads before claiming a particular concurrency target.
-
-Supported frontends: plain HTML/JS, React, Vue, and other static Vite projects. Server-rendered Next.js, distributed WebSocket fan-out, and automatic cloud provisioning remain outside scope.
-
-## Contributing
+Run development checks:
 
 ```bash
 python -m pip install -e '.[dev]'
@@ -221,12 +168,4 @@ python -m pytest -q
 python -m build
 ```
 
-Read [CONTRIBUTING.md](https://github.com/austinwin/qpyserve/blob/main/CONTRIBUTING.md), [AGENTS.md](https://github.com/austinwin/qpyserve/blob/main/AGENTS.md), [RELEASING.md](https://github.com/austinwin/qpyserve/blob/main/RELEASING.md), and the [changelog](https://github.com/austinwin/qpyserve/blob/main/CHANGELOG.md). MIT-licensed.
-
-### Development runtime reliability (0.4.0)
-
-When using Vite, QPyServe supervises the frontend dev server and the FastAPI
-reload process together. If either crashes, it exits with a clear error and
-cleans up both process trees. Python edits restart the API (Uvicorn's reloader on Linux/macOS,
-QPyServe's lightweight restart watcher on Windows); frontend edits use
-Vite HMR. Production process supervision remains the deployment platform's job.
+MIT licensed. QPyServe is an early-alpha project with an intentionally thin public API.

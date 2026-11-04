@@ -25,3 +25,14 @@ proxying, subprocess management, and API/SPA routing. Keep dependencies minimal.
 
 Include a minimal reproduction and sanitized logs with bug reports.
 Follow [SECURITY.md](SECURITY.md) for security vulnerabilities.
+
+## 0.5.0 feature verification
+
+For Typed API changes, run `python -m pytest tests/test_client.py tests/test_trace.py`
+and check the generated TypeScript compiles with the CI TypeScript version.
+For Ship changes, run `python -m pytest tests/test_ship.py` and the CI
+`ship-docker-smoke` job to verify an actual production image.
+
+Keep generated clients opt-in, preserve plain HTML without Node.js, and do not
+bypass FastAPI validation or authentication. Release instructions are in
+[RELEASING.md](RELEASING.md).
