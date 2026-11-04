@@ -107,7 +107,6 @@ def test_supervision_detects_frontend_crash(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError, match="Vite exited with status 2"):
         _runtime._supervise_dev(["npm"], tmp_path, tmp_path, 1111)
     assert stopped == [backend, vite]
-    assert signal.getsignal(signal.SIGTERM) == old_termination_handler
 
 
 def test_supervision_ctrl_c_cleans_up_children(monkeypatch, tmp_path):
@@ -129,6 +128,7 @@ def test_supervision_ctrl_c_cleans_up_children(monkeypatch, tmp_path):
     monkeypatch.setattr(_runtime.time, "sleep", lambda _: (_ for _ in ()).throw(KeyboardInterrupt))
     _runtime._supervise_dev(["npm"], tmp_path, tmp_path, 1111)
     assert stopped == [backend, vite]
+    assert signal.getsignal(signal.SIGTERM) == old_termination_handler
 
 
 def test_dev_backend_uses_project_reload_scope(tmp_path):
