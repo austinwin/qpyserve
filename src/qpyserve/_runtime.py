@@ -173,6 +173,7 @@ def run(
     api_paths: Iterable[str] | None = None,
     build: bool | None = None,
     trace: bool | None = None,
+    client: str | Path | None = None,
 ) -> None:
     """One-command runner. `--build` builds and exits; `--prod --build` builds then serves.
 
@@ -237,6 +238,21 @@ def run(
     if vite and mode == "development" and port == 65535:
         raise ValueError("Vite dev requires port and port+1; choose port <= 65534")
 
+    client_target: Path | None = None
+    if client is not None:
+        if not vite:
+            raise ValueError("Typed API client generation requires a Vite frontend")
+        from ._client import client_output, generate_client, save_client
+        client_target = client_output(project_dir, client)
+        if mode == "development" or build:
+            report = save_client(generate_client(app.openapi()), client_target)
+            if report["skipped"]:
+                print(
+                    f"[qpyserve] API generation skipped {len(report['skipped'])} "
+                    "unsupported operations (run qpyserve api for details)",
+                    flush=True,
+                )
+
     if app_import is None:
         main_globals = vars(sys.modules["__main__"])
         app_var = next((k for k, v in main_globals.items() if v is app and k.isidentifier()), None)
@@ -253,6 +269,8 @@ def run(
         "api_paths": paths,
         "built_vite": vite and mode == "production",
         "trace": trace,
+        "client_output": str(client_target) if client_target is not None
+        and mode == "development" else None,
     }
     previous = os.environ.get("QPYSERVE_RUNTIME_CONFIG")
     os.environ["QPYSERVE_RUNTIME_CONFIG"] = json.dumps(config)
