@@ -4,11 +4,13 @@ QPyServe Trace is a **local, development-only** browser panel for FastAPI
 applications using plain HTML/JavaScript or Vite-based React/Vue. Trace first
 appeared in 0.3.0; **0.4.0** adds browser-to-backend correlation, better
 failure categorization, redacted reports, and cross-platform runtime checks.
+**0.5.0** additionally records the matched OpenAPI operation ID and a safe,
+project-relative Python endpoint handler reference (when available).
 
 ## Get started
 
 ```bash
-python -m pip install --upgrade "qpyserve>=0.4.0"
+python -m pip install --upgrade "qpyserve>=0.5.0"
 git clone https://github.com/austinwin/qpyserve.git
 cd qpyserve/examples/trace-demo
 python main.py
@@ -29,6 +31,8 @@ For full scenario instructions, see the
    XHR-based clients such as Axios).
 2. FastAPI records a bounded request entry with the ID, HTTP method/status,
    **route template**, request duration, and observed failure category.
+   In 0.5.0 it can also include `operation_id` and `endpoint_source`
+   (`file.py:line`) for the matched FastAPI handler.
    Unhandled exceptions include their **type** and a project-relative
    `.py:line` reference when available. Exception messages are omitted.
 3. The Trace panel joins the failed browser request with its backend entry,
@@ -57,7 +61,8 @@ An example of *illustrative* JSON fields (not a live recording):
 }
 ```
 
-These fields are abbreviated; real entries also include timestamps and other
+These fields are abbreviated and illustrative; actual operation IDs and source
+locations depend on the app. Real entries also include timestamps and other
 permitted metadata. This example cannot establish the cause of the HTTP 503.
 
 ### Failure categories
@@ -105,7 +110,7 @@ Trace currently does **not** automatically instrument SQL, outbound HTTPX,
 Redis, or distributed requests. Use dedicated instrumentation (such as
 OpenTelemetry) when those details are necessary.
 
-## Development-server reliability in 0.4.0
+## Development-server reliability (0.4.0+)
 
 For Vite frontends, QPyServe supervises the frontend and FastAPI child
 processes. If either exits unexpectedly, the launcher stops both trees and
