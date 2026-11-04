@@ -10,6 +10,7 @@ import shutil
 from typing import Any, Sequence
 
 from . import __version__
+from ._ship import prepare_ship
 from ._tooling import _manager_command, has_vite, package_manager
 
 
@@ -123,6 +124,11 @@ def main(argv: Sequence[str] | None = None) -> int:
     doctor = commands.add_parser("doctor", help="Check a project's development setup")
     doctor.add_argument("directory", nargs="?", default=".")
     doctor.add_argument("--json", action="store_true", help="Machine-readable diagnostics for AI tools")
+    ship = commands.add_parser("ship", help="Generate Docker and Render deployment files")
+    ship.add_argument("directory", nargs="?", default=".")
+    ship.add_argument("--app", default="main:app", help="Import path, for example main:app")
+    ship.add_argument("--name", help="Render service name")
+    ship.add_argument("--json", action="store_true", help="Machine-readable result for AI tools")
     args = parser.parse_args(argv)
 
     if args.command == "new":
@@ -134,6 +140,22 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"\n  cd \"{target}\"\n  python main.py\n")
         if args.template != "html":
             print("Node.js or Bun is required for Vite; dependencies install on first run.")
+        return 0
+
+    if args.command == "ship":
+        try:
+            result = prepare_ship(args.directory, app_import=args.app, service_name=args.name)
+        except (OSError, ValueError, TypeError) as exc:
+            parser.exit(1, f"qpyserve: {exc}\n")
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(f"Deployment files created in {result['project']}:")
+            for name in result["files"]:
+                print(f"  {name}")
+            print("Review generated files, commit and push to GitHub, then create a Render Blueprint.")
+            print("No application was deployed. Render free instances sleep and have ephemeral storage.")
+            print("Protect public routes and configure secrets on your hosting provider.")
         return 0
 
     result = inspect_project(args.directory)
