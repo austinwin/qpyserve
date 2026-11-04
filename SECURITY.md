@@ -44,9 +44,24 @@ Missing API routes do not fall back to the SPA HTML page.
 This is defense in depth, **not** permission to place secrets under the frontend
 directory. A deliberately public `data.json` will still be served.
 
-## Trace 0.4 diagnostics
+## Trace diagnostics (0.4.0+)
 
 Browser-to-backend correlation IDs are identifiers, never authentication tokens.
 Reports use route templates instead of raw API paths and include only project-relative
-Python source locations. The client does not wrap cross-origin requests, and trace
+Python source locations. Starting in 0.5.0, reports can additionally include
+OpenAPI operation IDs and project-relative Python endpoint locations. The client
+does not wrap cross-origin requests, and trace
 metadata must never be treated as safe to publish without developer review.
+
+## Typed API and Ship (0.5.0+)
+
+Typed API generation imports the local FastAPI project to read its OpenAPI schema.
+Run `qpyserve api` only for trusted code, and treat generated TypeScript as
+compile-time assistance rather than authorization or validation. Generated files
+are browser-visible once bundled; never put secrets in schemas or frontends.
+
+`qpyserve ship` generates Docker/Render configuration without deploying.
+Inspect the Dockerfile and `.dockerignore` for project-specific credentials,
+validate third-party dependencies, and use hosted environment variables for
+secrets. A production container requires separate authentication, HTTPS,
+monitoring, scaling and durable storage.
