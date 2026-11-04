@@ -10,6 +10,7 @@ import shutil
 from typing import Any, Sequence
 
 from . import __version__
+from ._client import client_output, generate_client, load_app, save_client
 from ._ship import prepare_ship
 from ._tooling import _manager_command, has_vite, package_manager
 
@@ -129,6 +130,12 @@ def main(argv: Sequence[str] | None = None) -> int:
     ship.add_argument("--app", default="main:app", help="Import path, for example main:app")
     ship.add_argument("--name", help="Render service name")
     ship.add_argument("--json", action="store_true", help="Machine-readable result for AI tools")
+    api = commands.add_parser("api", help="Generate a typed TypeScript client from FastAPI")
+    api.add_argument("directory", nargs="?", default=".")
+    api.add_argument("--app", default="main:app", help="Local FastAPI import path")
+    api.add_argument("--out", help="Output .ts path within frontend/ (never overwrite hand-written files)")
+    api.add_argument("--check", action="store_true", help="Fail if generated client has drifted")
+    api.add_argument("--json", action="store_true", help="Machine-readable result")
     args = parser.parse_args(argv)
 
     if args.command == "new":
@@ -157,6 +164,30 @@ def main(argv: Sequence[str] | None = None) -> int:
             print("No application was deployed. Render free instances sleep and have ephemeral storage.")
             print("Protect public routes and configure secrets on your hosting provider.")
         return 0
+
+    if args.command == "api":
+        try:
+            project = Path(args.directory).expanduser().resolve()
+            app = load_app(project, args.app)
+            generated = generate_client(app.openapi())
+            target = client_output(project, args.out)
+            result = save_client(generated, target, check=args.check)
+        except (OSError, ValueError, TypeError, ImportError, AttributeError) as exc:
+            parser.exit(1, f"qpyserve: {exc}\n")
+        if args.json:
+            print(json.dumps(result, indent=2))
+        else:
+            print(
+                f"QPyServe API: {len(result['operations'])} typed operations; "
+                f"{len(result['skipped'])} skipped"
+            )
+            print(
+                ("Out of date: " if args.check and result["drift"] else "Client: ")
+                + str(target)
+            )
+            for warning in result["skipped"]:
+                print(f"  SKIPPED {warning}")
+        return 1 if args.check and result["drift"] else 0
 
     result = inspect_project(args.directory)
     if args.json:
