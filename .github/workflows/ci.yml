@@ -125,3 +125,38 @@ jobs:
       - run: python -m pip install -e .
       - name: Verify real proxy, reload, Trace and shutdown
         run: python tests/runtime_smoke.py
+
+  ship-docker-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install -e .
+      - name: Generate deployment assets for React starter
+        run: |
+          qpyserve new /tmp/qps-ship-react --template react
+          qpyserve ship /tmp/qps-ship-react
+          test -f /tmp/qps-ship-react/Dockerfile
+          test -f /tmp/qps-ship-react/render.yaml
+      - name: Build production container
+        run: docker build -t qps-ship-react /tmp/qps-ship-react
+      - name: Verify production origin, API, and disabled Trace
+        run: |
+          docker run -d --name qps-ship-test -p 127.0.0.1:18501:10000 qps-ship-react
+          for i in $(seq 1 45); do
+            if curl --fail --silent http://127.0.0.1:18501/__qpyserve/health >/dev/null &&
+               curl --fail --silent http://127.0.0.1:18501/api/hello >/dev/null &&
+               curl --fail --silent http://127.0.0.1:18501/ >/dev/null; then
+              status=$(curl --silent --output /dev/null --write-out '%{http_code}' http://127.0.0.1:18501/__qpyserve/trace)
+              test "$status" = 404
+              exit 0
+            fi
+            sleep 2
+          done
+          docker logs qps-ship-test
+          exit 1
+      - name: Stop container
+        if: always()
+        run: docker rm -f qps-ship-test || true
