@@ -1,6 +1,6 @@
-# Trace 0.4: interactive full-stack debugging demo
+# Trace 0.5: interactive full-stack debugging demo
 
-Requires QPyServe **0.4.0 or newer**. From the cloned QPyServe repository:
+Requires QPyServe **0.5.0 or newer**. From the cloned QPyServe repository:
 
 ```bash
 python -m pip install -e .
@@ -25,7 +25,7 @@ HTML frontend from the same origin, without installing Node.js.
 Select **Trace** (lower-right) or **Alt+Shift+T**, then **Refresh** and
 **Copy AI report**. In the JSON, match `browser_events[*].trace_id` to
 `backend_failures[*].id`, or inspect a browser event's attached `backend` object.
-The report includes a `qpyserve-trace-v2` format identifier.
+The report includes a `qpyserve-trace-v2` format identifier. In 0.5.0,\nbackend records also include an OpenAPI `operation_id` and, when possible,\na safe `endpoint_source` that points to the Python handler. These details\ncan appear in the browser event's correlated `backend` object.
 
 The 503 button sends a harmless demonstration query value
 `example-only-value`. Verify that this value **does not appear** in the copied
