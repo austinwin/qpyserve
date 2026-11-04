@@ -8,7 +8,7 @@
 
 QPyServe connects normal FastAPI applications with plain HTML/JavaScript, React, Vue, or other Vite frontends. It handles local startup, API proxying, frontend dependencies, and production static assets without replacing either framework.
 
-> **Development branch 0.4.0:** improves Trace correlation, failure categories, and runtime supervision. For the latest published version see [PyPI](https://pypi.org/project/qpyserve/).
+> **What's new in 0.4.0:** browser-to-FastAPI error correlation, safer AI-ready diagnostic reports, supervised Vite/FastAPI processes, and reliable Python reload on Windows. See the [0.4.0 changelog](https://github.com/austinwin/qpyserve/blob/main/CHANGELOG.md) and [interactive demo](https://github.com/austinwin/qpyserve/tree/main/examples/trace-demo/README.md).
 
 ## Create an app
 
@@ -67,7 +67,23 @@ It does not transmit data to external services, record request/response bodies,
 capture authorization headers or provide production APM. A copied report should be
 reviewed before sharing. To opt out, use `run(app, trace=False)`.
 
-[Trace documentation](docs/TRACE.md) · [Interactive Trace demo](examples/trace-demo/)
+[Trace documentation](https://github.com/austinwin/qpyserve/blob/main/docs/TRACE.md) · [Trace 0.4 example and expected results](https://github.com/austinwin/qpyserve/tree/main/examples/trace-demo/README.md) · [Release changes](https://github.com/austinwin/qpyserve/blob/main/CHANGELOG.md)
+
+### Try the 0.4.0 failure-correlation example
+
+```bash
+python -m pip install --upgrade qpyserve
+git clone https://github.com/austinwin/qpyserve.git
+cd qpyserve/examples/trace-demo
+python main.py
+```
+
+Open **http://localhost:1111**, click **503 Failed fetch** or
+**500 Python exception**, then open **Trace → Copy AI report**. The
+`qpyserve-trace-v2` JSON links the browser failure with the matching
+FastAPI request ID, category and (for Python exceptions) a safe,
+project-relative source location. The demo also includes HTTP 429 and
+XMLHttpRequest examples. No JavaScript runtime is needed for this HTML demo.
 
 ## Integrate into your existing application
 
@@ -100,7 +116,7 @@ The frontend can call `fetch("/api/hello")` without a separate browser origin or
 
 **Existing projects continue to work.** QPyServe does not change your FastAPI routes or Vue/React component model. It does not require special `npm run dev` scripts or a custom framework router.
 
-See the [HTML counter](examples/counter-html) and [React counter](examples/counter-react) for more examples.
+See the [HTML counter](https://github.com/austinwin/qpyserve/tree/main/examples/counter-html) and [React counter](https://github.com/austinwin/qpyserve/tree/main/examples/counter-react) for more examples.
 
 ## Production
 
@@ -134,7 +150,7 @@ Development mode binds to loopback only, and Vite development must never be expo
 | FastAPI / your code | Authorization, validation, authentication, CORS, sessions and business logic |
 | Deployment platform | HTTPS, monitoring, rate limiting, backups, scaling and load balancing |
 
-QPyServe blocks common private/development files and escaping symlinks when serving static assets, but **anything intentionally placed in a public frontend file can be downloaded**. Never place credentials in the frontend; API routes are public unless explicitly protected. A security review of your application is still necessary. See [SECURITY.md](SECURITY.md).
+QPyServe blocks common private/development files and escaping symlinks when serving static assets, but **anything intentionally placed in a public frontend file can be downloaded**. Never place credentials in the frontend; API routes are public unless explicitly protected. A security review of your application is still necessary. See [SECURITY.md](https://github.com/austinwin/qpyserve/blob/main/SECURITY.md).
 
 ## Scope and performance
 
@@ -151,7 +167,7 @@ python -m pytest -q
 python -m build
 ```
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md), [AGENTS.md](AGENTS.md), and [RELEASING.md](RELEASING.md). MIT-licensed.
+Read [CONTRIBUTING.md](https://github.com/austinwin/qpyserve/blob/main/CONTRIBUTING.md), [AGENTS.md](https://github.com/austinwin/qpyserve/blob/main/AGENTS.md), [RELEASING.md](https://github.com/austinwin/qpyserve/blob/main/RELEASING.md), and the [changelog](https://github.com/austinwin/qpyserve/blob/main/CHANGELOG.md). MIT-licensed.
 
 ### Development runtime reliability (0.4.0)
 

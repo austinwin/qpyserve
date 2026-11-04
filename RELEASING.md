@@ -35,7 +35,7 @@ only on search results.
 ## Subsequent releases
 
 1. Bump `[project].version` in `pyproject.toml` and `__version__` in `src/qpyserve/__init__.py`.
-2. Update tests/docs as needed; merge to `main`.
+2. Update tests and docs, add the new version's changes and a runnable example to `CHANGELOG.md` and `README.md`, and merge to `main`.
 3. Create/push a matching tag, e.g. `v0.1.1`, or use **Run workflow** on `main`.
    Tags are checked against the version in `pyproject.toml`.
 4. Confirm the build and publication jobs pass and installation from PyPI works.

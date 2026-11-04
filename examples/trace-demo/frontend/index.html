@@ -2,40 +2,70 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>QPyServe Trace demo</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QPyServe Trace 0.4 | Interactive diagnostics</title>
   <style>
     :root { font: 16px/1.5 system-ui, sans-serif; color-scheme: dark; }
     body { margin: 0; background: #0e1524; color: #edf4ff; min-height: 100vh;
       display: grid; place-items: center; }
-    main { max-width: 620px; padding: 34px; margin: 24px; border: 1px solid #3a4e70;
-      border-radius: 16px; background: #17243b; }
+    main { width: min(720px, calc(100vw - 36px)); padding: 28px; margin: 18px;
+      border: 1px solid #3a4e70; border-radius: 16px; background: #17243b; }
     p { color: #becee3; }
+    .actions { display: flex; flex-wrap: wrap; gap: 8px; }
     button { border-radius: 9px; border: 1px solid #638bca; background: #365a95;
-      color: white; padding: 11px 14px; font: inherit; cursor: pointer; margin: 5px; }
-    pre { overflow-wrap: anywhere; white-space: pre-wrap; background: #0e1524; padding: 14px; }
+      color: white; padding: 10px 13px; font: inherit; cursor: pointer; }
+    button:hover, button:focus-visible { background: #4974b2; }
+    pre { overflow-wrap: anywhere; white-space: pre-wrap; background: #0e1524;
+      border-radius: 8px; padding: 14px; min-height: 55px; }
+    code { color: #c7e0ff; }
   </style>
 </head>
 <body>
   <main>
-    <h1>QPyServe Trace demo</h1>
-    <p>Make a successful API request, intentionally return HTTP 503, or trigger a JavaScript error.
-      Open <strong>Trace</strong> at the bottom right to see diagnostics and copy a report.</p>
-    <button data-path="/api/hello">Successful API request</button>
-    <button data-path="/api/failure">HTTP 503 failure</button>
-    <button id="js-error">Throw JavaScript error</button>
-    <pre id="result" role="status" aria-live="polite">Ready</pre>
+    <h1>QPyServe Trace 0.4</h1>
+    <p>Trigger real browser → FastAPI requests, then open <strong>Trace</strong>
+      at the bottom-right. Choose <strong>Copy AI report</strong> to see failures,
+      categories, correlation IDs, and safe Python source references.</p>
+    <div class="actions">
+      <button data-path="/api/hello">200 · Successful fetch</button>
+      <button data-path="/api/failure?demo_token=example-only-value">503 · Failed fetch</button>
+      <button data-path="/api/rate-limit">429 · Rate limited</button>
+      <button data-path="/api/crash">500 · Python exception</button>
+      <button id="xhr-failure">503 · XMLHttpRequest</button>
+      <button id="js-error">JavaScript error</button>
+    </div>
+    <pre id="result" role="status" aria-live="polite">Ready. Open Trace after making a request.</pre>
+    <p>Expected: the copied JSON links failing browser events to FastAPI routes by
+      <code>trace_id</code>. It does not include the query value
+      <code>example-only-value</code> from the 503 URL.</p>
+    <p><a href="/docs">FastAPI API documentation</a></p>
   </main>
   <script>
     const output = document.querySelector('#result');
     document.querySelectorAll('[data-path]').forEach((button) => {
       button.addEventListener('click', async () => {
-        const response = await fetch(button.dataset.path);
-        output.textContent = 'HTTP ' + response.status + ': ' + await response.text();
+        output.textContent = 'Loading…';
+        try {
+          const response = await fetch(button.dataset.path);
+          output.textContent = 'HTTP ' + response.status + ': ' + await response.text();
+        } catch (error) {
+          output.textContent = 'Network error: ' + error.name;
+        }
       });
     });
+
+    document.querySelector('#xhr-failure').addEventListener('click', () => {
+      output.textContent = 'Loading via XMLHttpRequest…';
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', '/api/failure');
+      xhr.addEventListener('loadend', () => {
+        output.textContent = 'XHR HTTP ' + xhr.status + ': ' + xhr.responseText;
+      });
+      xhr.send();
+    });
+
     document.querySelector('#js-error').addEventListener('click', () => {
-      throw new Error('Intentional demo error');
+      throw new Error('Intentional demo-only JavaScript error');
     });
   </script>
 </body>
