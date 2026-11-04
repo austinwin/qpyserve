@@ -3,9 +3,6 @@ name: Publish to PyPI
 on:
   workflow_dispatch:
   push:
-    # Temporary one-time release trigger for v0.5.0. Remove after publication.
-    branches:
-      - main
     tags:
       - "v[0-9]*"
 
@@ -14,11 +11,7 @@ permissions:
 
 jobs:
   build:
-    if: >-
-      startsWith(github.ref, 'refs/tags/v') ||
-      (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-       startsWith(github.event.head_commit.message, 'release: QPyServe v0.5.0'))
+    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
     name: Test and build distributions
     runs-on: ubuntu-latest
     steps:
@@ -42,15 +35,6 @@ jobs:
           tag = os.environ["GITHUB_REF_NAME"]
           if tag != "v" + version:
               raise SystemExit(f"Tag {tag!r} does not match package version v{version}")
-          PY
-      - name: Verify one-time release commit uses exact v0.5.0
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-        run: |
-          python - <<'PY'
-          import pathlib
-          import tomllib
-          version = tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"]
-          assert version == "0.5.0", f"Expected 0.5.0 for the gated release; found {version}"
           PY
       - uses: actions/setup-node@v4
         with:
@@ -96,39 +80,9 @@ jobs:
           path: dist/
           if-no-files-found: error
 
-  tag_release:
-    name: Tag verified 0.5.0 release commit
-    needs: build
-    if: >-
-      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      startsWith(github.event.head_commit.message, 'release: QPyServe v0.5.0')
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-      - name: Create v0.5.0 tag on the verified release commit
-        shell: bash
-        run: |
-          git fetch --tags
-          if git rev-parse --verify refs/tags/v0.5.0 >/dev/null 2>&1; then
-            echo "Tag v0.5.0 already exists; refusing to republish." >&2
-            exit 1
-          fi
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -a v0.5.0 -m "QPyServe v0.5.0" "$GITHUB_SHA"
-          git push origin refs/tags/v0.5.0
-
   publish:
     name: Upload to PyPI
-    needs: [build, tag_release]
-    if: >-
-      always() && needs.build.result == 'success' &&
-      (needs.tag_release.result == 'success' ||
-       needs.tag_release.result == 'skipped')
+    needs: build
     runs-on: ubuntu-latest
     environment:
       name: pypi
@@ -148,27 +102,30 @@ jobs:
     needs: publish
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
-      - name: Install and smoke-test version 0.5.0 from PyPI
+      - name: Install and smoke-test version from PyPI
         shell: bash
         run: |
+          export QPYSERVE_RELEASE_VERSION="$(python -c 'import pathlib,tomllib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')"
           for attempt in $(seq 1 12); do
-            if python -m pip install --no-cache-dir --index-url https://pypi.org/simple/ "qpyserve==0.5.0"; then
+            if python -m pip install --no-cache-dir --index-url https://pypi.org/simple/ "qpyserve==$QPYSERVE_RELEASE_VERSION"; then
               break
             fi
             if [ "$attempt" -eq 12 ]; then
-              echo "Version 0.5.0 did not appear on PyPI" >&2
+              echo "Version $QPYSERVE_RELEASE_VERSION did not appear on PyPI" >&2
               exit 1
             fi
             sleep 10
           done
           python - <<'PY'
+          import os
           import qpyserve
           from qpyserve._client import generate_client
           from qpyserve._ship import prepare_ship
-          assert qpyserve.__version__ == "0.5.0", qpyserve.__version__
+          assert qpyserve.__version__ == os.environ["QPYSERVE_RELEASE_VERSION"]
           assert callable(generate_client)
           assert callable(prepare_ship)
           PY
