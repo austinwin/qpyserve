@@ -61,7 +61,7 @@ def test_generated_contract_tracks_real_pydantic_models() -> None:
     assert "x-qpyserve-trace-id" in source.source
     assert "encodeURIComponent(String(value))" in source.source
     assert "new URLSearchParams()" in source.source
-    assert "request bodies in Trace" in source.source
+    assert "extra request bodies" in source.source
 
 
 def test_common_json_schema_types() -> None:
