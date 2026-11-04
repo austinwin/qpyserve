@@ -41,9 +41,15 @@ Use the PyPI project **Manage → Publishing** page to inspect the configuration
 
 ## QPyServe 0.5.0 publishing note
 
-The publishing workflow has a **temporary, tightly gated release commit trigger** for `release: QPyServe v0.5.0` on `main` to publish this particular release using the existing trusted-publisher flow. That trigger also creates `v0.5.0` from the verified release commit if it is not already present. It will be removed immediately after publication.
+Version `v0.5.0` was released from the verified release commit using a
+one-time guarded release workflow, which created the annotated tag and published
+to PyPI through Trusted Publishing. The temporary main-branch publication
+trigger has since been removed. **Subsequent versions are tag-driven**, as
+described in the release checklist.
 
-For future versions, use the standard annotated/signed tag and the existing tag-triggered `publish.yml` workflow. Do **not** leave a general publish-on-every-main-push trigger enabled.
+The publication workflow now verifies the installed PyPI wheel with a clean
+Python environment after upload, including version and CLI checks. A failed
+install verification must be investigated even if the upload job succeeded.
 
 ## Troubleshooting
 
