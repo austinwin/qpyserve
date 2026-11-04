@@ -107,10 +107,14 @@ def test_supervision_detects_frontend_crash(monkeypatch, tmp_path):
     with pytest.raises(RuntimeError, match="Vite exited with status 2"):
         _runtime._supervise_dev(["npm"], tmp_path, tmp_path, 1111)
     assert stopped == [backend, vite]
+    assert signal.getsignal(signal.SIGTERM) == old_termination_handler
 
 
 def test_supervision_ctrl_c_cleans_up_children(monkeypatch, tmp_path):
+    import signal
     from qpyserve import _runtime
+
+    old_termination_handler = signal.getsignal(signal.SIGTERM)
 
     class Process:
         def poll(self):

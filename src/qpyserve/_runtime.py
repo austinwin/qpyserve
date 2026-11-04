@@ -72,6 +72,23 @@ def _supervise_dev(
     kwargs = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
               if os.name == "nt" else {"start_new_session": True})
     children: list[tuple[str, subprocess.Popen]] = []
+    previous_handlers = {}
+
+    def request_shutdown(_signum, _frame) -> None:
+        raise KeyboardInterrupt
+
+    # SIGTERM on POSIX and CTRL_BREAK_EVENT (SIGBREAK) on Windows should
+    # trigger the same cleanup as Ctrl+C. A background thread cannot register
+    # signal handlers; it still gets the normal stop logic on KeyboardInterrupt.
+    signals = [signal.SIGTERM]
+    if os.name == "nt" and hasattr(signal, "SIGBREAK"):
+        signals.append(signal.SIGBREAK)
+    for signum in signals:
+        try:
+            previous_handlers[signum] = signal.getsignal(signum)
+            signal.signal(signum, request_shutdown)
+        except ValueError:
+            previous_handlers.pop(signum, None)
     try:
         vite = subprocess.Popen(vite_cmd, cwd=frontend_root, **kwargs)
         children.append(("Vite", vite))
@@ -96,6 +113,8 @@ def _supervise_dev(
     finally:
         for _name, process in reversed(children):
             _stop_process(process)
+        for signum, handler in previous_handlers.items():
+            signal.signal(signum, handler)
 
 
 def run(
