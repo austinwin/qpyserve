@@ -220,6 +220,21 @@ def run(
     static_directory = root / dist if vite else root
     if vite and not static_directory.resolve().is_relative_to(root):
         raise ValueError("dist must resolve inside the frontend directory")
+    client_target: Path | None = None
+    if client is not None:
+        if not vite:
+            raise ValueError("Typed API client generation requires a Vite frontend")
+        from ._client import client_output, generate_client, save_client
+        client_target = client_output(project_dir, client)
+        if mode == "development" or build:
+            report = save_client(generate_client(app.openapi()), client_target)
+            if report["skipped"]:
+                print(
+                    f"[qpyserve] API generation skipped {len(report['skipped'])} "
+                    "unsupported operations (run qpyserve api for details)",
+                    flush=True,
+                )
+
     if build:
         if vite:
             build_frontend(root)
@@ -237,21 +252,6 @@ def run(
         raise FileNotFoundError(f"Plain HTML frontend must contain {root / 'index.html'}")
     if vite and mode == "development" and port == 65535:
         raise ValueError("Vite dev requires port and port+1; choose port <= 65534")
-
-    client_target: Path | None = None
-    if client is not None:
-        if not vite:
-            raise ValueError("Typed API client generation requires a Vite frontend")
-        from ._client import client_output, generate_client, save_client
-        client_target = client_output(project_dir, client)
-        if mode == "development" or build:
-            report = save_client(generate_client(app.openapi()), client_target)
-            if report["skipped"]:
-                print(
-                    f"[qpyserve] API generation skipped {len(report['skipped'])} "
-                    "unsupported operations (run qpyserve api for details)",
-                    flush=True,
-                )
 
     if app_import is None:
         main_globals = vars(sys.modules["__main__"])
