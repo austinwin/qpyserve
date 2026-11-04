@@ -128,7 +128,7 @@ def _supervise_dev(
         vite = subprocess.Popen(vite_cmd, cwd=frontend_root, **kwargs)
         children.append(("Vite", vite))
         backend = subprocess.Popen(api_command, cwd=project_dir, **kwargs)
-        children.append(("FastAPI", backend)
+        children.append(("FastAPI", backend))
         print(
             f"[qpyserve] http://localhost:{port} (Vite + FastAPI, supervised)",
             flush=True,
