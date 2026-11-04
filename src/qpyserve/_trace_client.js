@@ -199,7 +199,8 @@
       title.classList.add(event.status >= 400 || event.kind !== 'FastAPI' ? 'danger' : 'ok');
       const detail = document.createElement('div'); detail.className = 'detail';
       detail.textContent = [event.duration_ms != null ? `${event.duration_ms} ms` : '',
-        event.trace_id || event.id || '', event.category || '', event.exception || '', event.source || '']
+        event.trace_id || event.id || '', event.category || '', event.exception || '', event.operation_id || '',
+        event.endpoint_source || '', event.source || '']
         .filter(Boolean).join(' · ');
       box.append(title, detail); listing.append(box);
     }
@@ -222,7 +223,9 @@
       const match = event.trace_id && requests.find((r) => r.id === event.trace_id);
       return match
         ? {...event, backend: {route: match.route, category: match.category,
-          status: match.status, source: match.source || null}}
+          status: match.status, operation_id: match.operation_id || null,
+          endpoint_source: match.endpoint_source || null,
+          source: match.source || null}}
         : event;
     });
     const report = {
