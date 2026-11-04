@@ -1,61 +1,126 @@
-import {useEffect,useState} from 'react';
-import {Activity,ArrowRight,Braces,CheckCircle2,ChevronDown,Code2,Copy,ExternalLink,FileCode2,Folder,GitBranch,Github,Gauge,Layers,Play,RefreshCw,Server,ShieldCheck,Terminal,Zap} from 'lucide-react';
-const repo='https://github.com/austinwin/qpyserve/tree/showcase/render-live-demo/showcase';
-const groups=[['backend','Backend',Server],['frontend','Frontend',Layers],['deployment','Deployment',Terminal]];
+import React, {useEffect, useMemo, useRef, useState} from 'react';
+import {useDispatch} from 'react-redux';
+import {addDataToMap} from '@kepler.gl/actions';
+import {processGeojson} from '@kepler.gl/processors';
+import {Activity, ArrowDownToLine, ArrowRight, Check, ChevronDown, CircleAlert, Cloud, Code2, Copy, Database, FileCode2, FolderOpen, Github, Globe2, Layers, LoaderCircle, Map as MapIcon, Play, RotateCcw, Server, ShieldCheck, Sparkles, UploadCloud} from 'lucide-react';
+import MapPanel from './MapPanel.jsx';
+
+const REPO='https://github.com/austinwin/qpyserve/tree/showcase/render-live-demo/showcase';
+const OPERATIONS={
+  buffer:{title:'Buffer & dissolve',desc:'Create radius-based polygons around every feature in metres, with optional union.', param:'distance_m',label:'Buffer radius',unit:'metres',min:10,max:2500,step:50},
+  density:{title:'Spatial density grid',desc:'Aggregate spatial features into a metre-based square grid and calculate site counts.',param:'cell_m',label:'Grid cell size',unit:'metres',min:150,max:4000,step:100},
+  hull:{title:'Convex hull',desc:'Calculate the smallest convex boundary containing all input geometries.'}
+};
+const parseError=async r=>{let data;try{data=await r.json()}catch{};if(!r.ok)throw Error(typeof data?.detail==='string'?data.detail:'HTTP '+r.status);return data};
+const asCount=n=>Number(n||0).toLocaleString();
+
 export default function App(){
-  const [tab,setTab]=useState('play');
+  const dispatch=useDispatch();
+  const [view,setView]=useState('map');
   const [health,setHealth]=useState(null);
-  const [statusError,setStatusError]=useState('');
-  const [flow,setFlow]=useState('4200'),[diameter,setDiameter]=useState('16');
-  const [answer,setAnswer]=useState(null),[error,setError]=useState(''),[busy,setBusy]=useState(false),[duration,setDuration]=useState(0);
-  const [files,setFiles]=useState({}),[path,setPath]=useState('main.py'),[code,setCode]=useState(''),[sourceError,setSourceError]=useState(''),[copied,setCopied]=useState(false);
-  const [expanded,setExpanded]=useState({backend:true,frontend:true,deployment:true});
-  async function refresh(){
-    try{const r=await fetch('/api/health',{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);setHealth(await r.json());setStatusError('')}
-    catch(e){setHealth(null);setStatusError(e.message)}
+  const [demo,setDemo]=useState(null),[collection,setCollection]=useState(null);
+  const [datasetName,setDatasetName]=useState('Synthetic Houston sites');
+  const [operation,setOperation]=useState('buffer');
+  const [distance,setDistance]=useState(450),[cell,setCell]=useState(1200),[dissolve,setDissolve]=useState(true);
+  const [loading,setLoading]=useState(true),[running,setRunning]=useState(false),[error,setError]=useState('');
+  const [result,setResult]=useState(null),[lastGeoJSON,setLastGeoJSON]=useState(null),[runCount,setRunCount]=useState(0);
+  const [files,setFiles]=useState({}),[sourcePath,setSourcePath]=useState('geoengine.py'),[code,setCode]=useState(''),[sourceError,setSourceError]=useState(''),[copied,setCopied]=useState(false);
+  const fileRef=useRef(null);
+  const addLayer=(geojson,id,label,center)=>{
+    const data=processGeojson(geojson);
+    dispatch(addDataToMap({datasets:{info:{id,label},data},option:{centerMap:center,readOnly:false}}));
+  };
+  async function reset(){
+    setLoading(true);setError('');
+    try{
+      const data=await parseError(await fetch('/api/sample?count=850'));
+      setDemo(data);setCollection(data);setDatasetName('Synthetic Houston sites');setResult(null);setLastGeoJSON(null);
+      addLayer(data,'synthetic-sites','Synthetic Houston sites',true);
+    }catch(e){setError('Unable to load sample: '+e.message)}
+    finally{setLoading(false)}
   }
-  useEffect(()=>{refresh();fetch('/api/source-files').then(r=>r.json()).then(setFiles).catch(()=>{})},[]);
   useEffect(()=>{
-    const controller=new AbortController();setSourceError('');setCode('');
-    fetch('/api/source?path='+encodeURIComponent(path),{signal:controller.signal}).then(r=>{if(!r.ok)throw Error('HTTP '+r.status);return r.json()}).then(r=>setCode(r.content)).catch(e=>{if(e.name!=='AbortError')setSourceError(e.message)});
-    return ()=>controller.abort()
-  },[path]);
-  async function calculate(e){
-    e.preventDefault();setAnswer(null);setError('');setBusy(true);const t=performance.now();
-    try{const r=await fetch('/api/flow',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({flow_gpm:Number(flow),diameter_in:Number(diameter)})});const data=await r.json();setDuration(Math.round(performance.now()-t));if(!r.ok)throw Error(JSON.stringify(data.detail));setAnswer(data)}
-    catch(e){setError(e.message)}finally{setBusy(false)}
+    reset();
+    fetch('/api/health').then(parseError).then(setHealth).catch(()=>setHealth(null));
+    fetch('/api/source-files').then(parseError).then(setFiles).catch(()=>{});
+  },[]);
+  useEffect(()=>{
+    const ctrl=new AbortController();setCode('');setSourceError('');
+    fetch('/api/source?path='+encodeURIComponent(sourcePath),{signal:ctrl.signal}).then(parseError).then(v=>setCode(v.content)).catch(e=>{if(e.name!=='AbortError')setSourceError(e.message)});
+    return ()=>ctrl.abort();
+  },[sourcePath]);
+  const op=OPERATIONS[operation];
+  async function uploadFile(e){
+    const file=e.target.files?.[0]; if(!file)return;
+    setError('');
+    try{
+      if(file.size>3*1024*1024)throw Error('File is over the 3 MB demo limit.');
+      const geo=JSON.parse(await file.text());
+      if(geo?.type!=='FeatureCollection'||!Array.isArray(geo.features)||geo.features.length===0)throw Error('Upload an EPSG:4326 GeoJSON FeatureCollection.');
+      if(geo.features.length>2500)throw Error('Limit is 2500 features per file.');
+      setCollection(geo);setDatasetName(file.name);setResult(null);setLastGeoJSON(null);
+      addLayer(geo,'uploaded-'+Date.now(),file.name,true);
+    }catch(err){setError(err.message)}
+    e.target.value='';
   }
-  async function copy(){try{await navigator.clipboard.writeText(code);setCopied(true);setTimeout(()=>setCopied(false),1300)}catch{}}
-  const selected=groups.find(g=>(files[g[0]]||[]).some(f=>f.id===path));
+  async function run(){
+    if(!collection)return;
+    setRunning(true);setError('');setResult(null);
+    try{
+      const response=await fetch('/api/geoprocess',{
+        method:'POST',headers:{'Content-Type':'application/json'},
+        body:JSON.stringify({collection,operation,distance_m:Number(distance),cell_m:Number(cell),dissolve})
+      });
+      const data=await parseError(response);
+      const next=runCount+1;setRunCount(next);setLastGeoJSON(data);setResult(data.metadata);
+      addLayer(data,'result-'+next,op.title+' #'+next,false);
+    }catch(e){setError(e.message)}finally{setRunning(false)}
+  }
+  function download(){
+    if(!lastGeoJSON)return;
+    const blob=new Blob([JSON.stringify(lastGeoJSON,null,2)],{type:'application/geo+json'});
+    const u=URL.createObjectURL(blob);const a=document.createElement('a');a.href=u;a.download='qpyserve-'+operation+'-result.geojson';a.click();URL.revokeObjectURL(u);
+  }
+  async function copy(){try{await navigator.clipboard.writeText(code);setCopied(true);setTimeout(()=>setCopied(false),1600)}catch{}}
   return <div className="shell">
     <aside className="sidebar">
-      <div className="brand"><span className="brand-symbol"><Braces size={23}/></span><div><strong>QPyServe</strong><small>LIVE SHOWCASE</small></div></div>
-      <div className="sub-label">WORKSPACE</div>
-      <button className={'nav '+(tab==='play'?'active':'')} onClick={()=>setTab('play')}><Gauge size={17}/>Playground<ArrowRight size={15} className="nav-end"/></button>
-      <button className={'nav '+(tab==='code'?'active':'')} onClick={()=>setTab('code')}><Code2 size={17}/>Source explorer<ArrowRight size={15} className="nav-end"/></button>
-      <div className="push"/>
-      <div className="hint"><Zap size={19}/><div><b>One origin, two stacks</b><p>FastAPI powers the API. React powers this interface. QPyServe connects them.</p></div></div>
-      <div className="side-status"><span className={'dot '+(health?'good':'')}/>{health?'Backend connected':'Backend unavailable'}<button onClick={refresh} title="Retry"><RefreshCw size={15}/></button></div>
+      <div className="identity"><div className="mark"><Layers size={24}/></div><div><strong>QPyServe</strong><span>SPATIAL LAB <small>v1.1</small></span></div></div>
+      <div className="navlist">
+        <button className={'nav '+(view==='map'?'selected':'')} onClick={()=>setView('map')}><MapIcon size={17}/>Geospatial workspace</button>
+        <button className={'nav '+(view==='source'?'selected':'')} onClick={()=>setView('source')}><Code2 size={17}/>Source code explorer</button>
+      </div>
+      <div className="nav-divider"/>
+      <div className="sidebar-scroll">
+      {view==='map'?<>
+        <div className="pane-label"><span>01</span> DATASET</div>
+        <div className="info-card"><div className="info-icon"><Database size={17}/></div><div className="info-main"><strong>{datasetName}</strong><small>{asCount(collection?.features.length)} features · EPSG:4326</small></div></div>
+        <div className="inline-buttons"><button onClick={()=>fileRef.current?.click()}><UploadCloud size={15}/>Import GeoJSON</button><button onClick={reset}><RotateCcw size={15}/>Sample</button></div>
+        <input ref={fileRef} type="file" accept=".json,.geojson,application/json,application/geo+json" hidden onChange={uploadFile}/>
+        <p className="notice small">Sample data is simulated. No actual Houston Water assets or readings.</p>
+        <div className="nav-divider"/>
+        <div className="pane-label"><span>02</span> SERVER OPERATION</div>
+        <label className="field-label" htmlFor="operation">Algorithm</label>
+        <div className="select-wrap"><select id="operation" value={operation} onChange={e=>setOperation(e.target.value)}>{Object.entries(OPERATIONS).map(([k,v])=><option key={k} value={k}>{v.title}</option>)}</select><ChevronDown size={15}/></div>
+        <p className="field-help">{op.desc}</p>
+        {op.param&&<><div className="field-row"><label className="field-label" htmlFor="param">{op.label}</label><strong>{operation==='buffer'?asCount(distance):asCount(cell)} m</strong></div><input id="param" className="range" type="range" min={op.min} max={op.max} step={op.step} value={operation==='buffer'?distance:cell} onChange={e=>operation==='buffer'?setDistance(+e.target.value):setCell(+e.target.value)}/><div className="range-labels"><span>{op.min} m</span><span>{asCount(op.max)} m</span></div></>}
+        {operation==='buffer'&&<label className="toggle-line"><input type="checkbox" checked={dissolve} onChange={e=>setDissolve(e.target.checked)}/><span>Dissolve overlapping buffers</span></label>}
+        <button className="run-button" disabled={running||loading||!collection} onClick={run}>{running?<LoaderCircle className="spin" size={17}/>:<Play size={16} fill="currentColor"/>}{running?'Running in Python…':'Run geoprocessing'}<ArrowRight size={16}/></button>
+        {error&&<div className="error"><CircleAlert size={16}/><span>{error}</span></div>}
+        {result&&<div className="result-box"><div className="result-head"><Check size={16}/>Processing complete</div><div className="stat-row"><span>Input features</span><b>{asCount(result.input_features)}</b></div><div className="stat-row"><span>Output features</span><b>{asCount(result.output_features)}</b></div><div className="stat-row"><span>Backend compute</span><b>{result.elapsed_ms} ms</b></div><div className="stat-row"><span>Calculation CRS</span><b>{result.processing_crs}</b></div><button className="download" onClick={download}><ArrowDownToLine size={14}/>Download result GeoJSON</button></div>}
+        <div className="nav-divider"/>
+        <div className="pane-label"><span>03</span> DATA FLOW</div>
+        <div className="flow-mini"><span><Globe2 size={15}/>React + Kepler.gl</span><i>↓ POST GeoJSON</i><span><Server size={15}/>FastAPI + Shapely</span><i>↓ Result GeoJSON</i><span><Layers size={15}/>New WebGL layer</span></div>
+      </>:<>
+        <div className="pane-label"><span>01</span> FILE GROUPS</div>
+        {Object.entries(files).map(([group,entries])=><div className="filegroup" key={group}><div className="filegroup-title"><FolderOpen size={15}/>{group}</div>{entries.map(f=><button title={f.id} key={f.id} className={'fileitem '+(sourcePath===f.id?'active':'')} onClick={()=>setSourcePath(f.id)}><FileCode2 size={14}/>{f.name}</button>)}</div>)}
+        <p className="notice small"><ShieldCheck size={14}/>Only explicitly allowlisted demo source can be viewed.</p>
+      </>}
+      </div>
+      <div className="sidebar-foot"><span className={'led '+(health?'online':'')}/><div><strong>{health?'Backend connected':'Backend unavailable'}</strong><small>QPyServe + FastAPI</small></div></div>
     </aside>
     <main className="main">
-      <header className="topbar"><div className="crumb">QPyServe <span>/</span> <b>{tab==='play'?'Playground':'Source explorer'}</b></div><div className="top-right"><span className={'pill '+(health?'green':'amber')}>{health?'● Live API':'○ Offline'}</span><a href="https://github.com/austinwin/qpyserve" target="_blank" rel="noreferrer"><Github size={17}/> <span>Framework</span><ExternalLink size={13}/></a></div></header>
-      <div className="content">
-      {tab==='play'?<>
-        <div className="eyebrow"><i/>PRODUCTION DEPLOYMENT · REACT + FASTAPI</div>
-        <div className="hero"><div><h1>One app.<br/><em>Both sides of the stack.</em></h1><p>A real QPyServe application hosted online. Run a calculation through Python, inspect the JSON response, then explore every public source file powering the demo.</p><div className="hero-buttons"><button className="button primary" onClick={()=>document.getElementById('api')?.scrollIntoView({behavior:'smooth'})}><Play size={16} fill="currentColor"/>Try the live API<ArrowRight size={16}/></button><button className="button secondary" onClick={()=>setTab('code')}><FileCode2 size={16}/>Browse source</button></div></div><div className="graphic"><div className="stack"><span className="react-logo">⚛</span><div><b>React</b><small>Vite frontend</small></div></div><div className="connector"><span/><b>ONE ORIGIN</b><span/></div><div className="stack bottom"><span className="python-logo">Py</span><div><b>FastAPI</b><small>Python backend</small></div></div></div></div>
-        <div className="metrics"><div><label><Activity size={15}/>API Status</label><strong>{health?'Healthy':'Unavailable'}</strong><small>{health?'GET /api/health succeeded':statusError||'Checking…'}</small></div><div><label><RefreshCw size={15}/>Backend Uptime</label><strong>{health?Math.floor(health.uptime_seconds/60)+' min':'—'}</strong><small>Since process started</small></div><div><label><Layers size={15}/>Architecture</label><strong>2 layers</strong><small>React UI + FastAPI API</small></div></div>
-        <div id="api" className="section-heading"><div><span className="section-kicker">INTERACTIVE TEST</span><h2>See Python work behind React</h2><p>Adjust the values and send a real POST request to the backend.</p></div><span className="pill"><Zap size={13}/>Live calculation</span></div>
-        <div className="demo-grid"><form className="panel" onSubmit={calculate}><div className="panel-title"><strong><span className="method">POST</span>/api/flow</strong><small>Request body</small></div><div className="panel-body"><label>Flow rate <span>GPM</span></label><div className="input-wrap"><input type="number" min="0" max="200000" step="any" value={flow} onChange={e=>setFlow(e.target.value)} required/><span>gallons/min</span></div><label>Inside pipe diameter <span>inches</span></label><div className="input-wrap"><input type="number" min="0.01" max="144" step="any" value={diameter} onChange={e=>setDiameter(e.target.value)} required/><span>inches</span></div><div className="hint-line"><ShieldCheck size={15}/>Pydantic validates the request on the backend</div><button className="button primary wide" disabled={busy}>{busy?'Calculating…':<><Play size={15} fill="currentColor"/>Run calculation<ArrowRight size={16}/></>}</button></div></form>
-        <div className="panel result-panel"><div className="panel-title"><strong><span className={'status-bullet '+(answer?'lit':'')}/>Backend response</strong><span className={'pill '+(answer?'green':'')}>{answer?'200 OK · '+duration+'ms':'JSON'}</span></div>{answer?<div className="result-content"><div className="numbers"><div><small>Average velocity</small><strong>{answer.velocity_fps} <span>ft/s</span></strong></div><div><small>Flow volume</small><strong>{answer.flow_mgd} <span>MGD</span></strong></div></div><pre className="json">{JSON.stringify(answer,null,2)}</pre></div>:<div className="empty"><span className="empty-symbol"><Terminal size={28}/></span><strong>{error?'Request failed':'Awaiting request'}</strong><p>{error||'Run the calculation to see actual JSON returned by Python.'}</p></div>}</div></div>
-        <div className="cta"><div className="cta-icon"><Code2/></div><div><strong>Want to see exactly how this works?</strong><p>Browse real Python routes, React components, CSS and deployment configuration.</p></div><button className="button secondary" onClick={()=>setTab('code')}>Explore the code<ArrowRight size={15}/></button></div>
-      </>:<>
-        <div className="eyebrow"><i/>FULL SOURCE TRANSPARENCY</div>
-        <div className="source-heading"><div><h1>Explore the <em>source code.</em></h1><p>Actual files read from the deployed application. Open the Python backend, React frontend, styles, and deployment configuration.</p></div><a href={repo} target="_blank" rel="noreferrer" className="button secondary"><Github size={16}/>Open on GitHub<ExternalLink size={13}/></a></div>
-        <div className="explorer"><div className="file-sidebar"><div className="file-title"><Folder size={15}/>PROJECT FILES</div>{groups.map(([id,label,Icon])=><div key={id} className="file-group"><button className="group-button" onClick={()=>setExpanded(v=>({...v,[id]:!v[id]}))}><Icon size={15}/>{label}<ChevronDown className={!expanded[id]?'folded':''} size={13}/></button>{expanded[id]&&(files[id]||[]).map(f=><button key={f.id} className={'file-button '+(f.id===path?'picked':'')} onClick={()=>setPath(f.id)} title={f.id}><FileCode2 size={14}/><span>{f.name}</span></button>)}</div>)}</div><div className="code-area"><div className="code-header"><div><div className="code-path">{selected?.[1]||'Source'} <span>/</span> <strong>{path}</strong></div><small>{code.split('\n').length} lines · read-only</small></div><button className="button copy" onClick={copy} disabled={!code}>{copied?<CheckCircle2 size={15}/>:<Copy size={15}/>} {copied?'Copied':'Copy'}</button></div><div className="code-scroll">{sourceError?<p className="source-error">{sourceError}</p>:<pre className="code-text">{code.split('\n').map((line,i)=><span className="code-line" key={i}><span className="line-no">{i+1}</span><span className="line-text">{line||' '}</span></span>)}</pre>}</div></div></div>
-        <div className="source-notice"><ShieldCheck size={17}/>The explorer displays an explicit allowlist of demo source files. It cannot browse arbitrary files or reveal server credentials.</div>
-      </>}
-      <footer><span><span className="dot good"/>Powered by QPyServe 0.4 · FastAPI · React</span><span>Full-stack deployment proof of concept</span></footer>
-      </div>
+      <header className="top"><div className="breadcrumb">Workspace <span>/</span> <strong>{view==='map'?'Geospatial Analysis':'Source Explorer'}</strong></div><div className="top-actions"><div className="top-status"><span className={'led '+(health?'online':'')}/>{health?'API online':'API offline'}</div><a href={REPO} target="_blank" rel="noreferrer"><Github size={16}/>GitHub <ArrowRight size={13}/></a></div></header>
+      {view==='map'?<div className="workspace"><div className="map-top"><div><span className="eyebrow">WEBGL + PYTHON GEOPROCESSING</span><h1>Spatial analysis, <em>connected.</em></h1><p>Run geometry operations on the Python server and explore the results in Kepler.gl's interactive map.</p></div><div className="tech-pills"><span>Kepler.gl</span><span>Shapely</span><span>PyProj</span></div></div><div className="map-wrap">{loading&&<div className="map-loader"><LoaderCircle className="spin"/>Loading synthetic data…</div>}<MapPanel/><div className="map-badge"><span className="led online"/>Interactive Kepler.gl map · synthetic data</div></div><div className="under-map"><div><Activity size={16}/>Every operation is calculated by FastAPI, not by the browser.</div><div><ShieldCheck size={16}/>Free-hosted demo · 2,500-feature processing limit</div></div></div>:<div className="source-content"><span className="eyebrow">REAL DEPLOYED SOURCE</span><div className="source-title"><div><h1>Explore both sides <em>of the stack.</em></h1><p>Read the actual backend algorithms, API endpoints, React Kepler.gl integration and Docker build.</p></div><a href={REPO} target="_blank" rel="noreferrer"><Github size={15}/>View repository <ArrowRight size={14}/></a></div><div className="editor"><div className="editor-bar"><div><span>showcase / </span><b>{sourcePath}</b><small>{code.split('\n').length} lines · read-only</small></div><button onClick={copy} disabled={!code}>{copied?<Check size={14}/>:<Copy size={14}/>} {copied?'Copied':'Copy'}</button></div><div className="code-scroll">{sourceError?<div className="error">{sourceError}</div>:<pre>{code.split('\n').map((line,i)=><div className="code-line" key={i}><span className="line-num">{i+1}</span><span>{line||' '}</span></div>)}</pre>}</div></div></div>}
     </main>
   </div>;
 }
