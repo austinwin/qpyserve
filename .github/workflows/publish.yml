@@ -3,6 +3,8 @@ name: Publish to PyPI
 on:
   workflow_dispatch:
   push:
+    branches:
+      - main
     tags:
       - "v[0-9]*"
 
@@ -11,7 +13,13 @@ permissions:
 
 jobs:
   build:
-    if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v')
+    # One-time main-branch release event; do not publish on ordinary pushes.
+    if: >-
+      (github.event_name == 'workflow_dispatch' &&
+       (github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v'))) ||
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      (github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+       github.event.head_commit.message == 'release: publish qpyserve v0.4.0')
     name: Test and build distributions
     runs-on: ubuntu-latest
     steps:
