@@ -188,3 +188,120 @@ def test_js_module_is_same_origin():
     assert r.status_code == 200
     assert "export function dataset" in r.text
     assert "no-store" in r.headers["cache-control"]
+
+
+def test_simple_csv_source_and_file_refresh(tmp_path):
+    csv = tmp_path / "pumpage.csv"
+    csv.write_text("day,mgd\n1,20\n2,30\n", encoding="utf-8")
+    app = FastAPI()
+    DataBridge(app, public=True, sources={"pumpage": csv})
+    client = TestClient(app)
+
+    schema = client.get("/api/data/pumpage")
+    assert schema.status_code == 200, schema.text
+    assert [x["name"] for x in schema.json()["columns"]] == ["day", "mgd"]
+    first = client.get("/api/data/pumpage/version")
+    assert first.status_code == 200
+    first_version = first.json()["version"]
+    assert isinstance(first_version, str) and len(first_version) == 24
+    assert str(tmp_path) not in first.text
+    assert "no-store" in first.headers["cache-control"]
+
+    query = client.post(
+        "/api/data/pumpage/query",
+        json={"columns": ["day", "mgd"], "limit": 2, "sort": [{"column": "day"}]},
+    )
+    assert query.status_code == 200, query.text
+    assert query.json()["rows"] == [{"day": 1, "mgd": 20}, {"day": 2, "mgd": 30}]
+
+    # Changing the file should not require restarting FastAPI or resetting cache.
+    csv.write_text("day,mgd\n1,20\n2,30\n3,100\n", encoding="utf-8")
+    second = client.get("/api/data/pumpage/version")
+    assert second.status_code == 200
+    assert second.json()["version"] != first_version
+    rows = client.post(
+        "/api/data/pumpage/query", json={"sort": [{"column": "day"}], "limit": 3}
+    ).json()["rows"]
+    assert rows[-1] == {"day": 3, "mgd": 100}
+
+    csv.unlink()
+    missing = client.get("/api/data/pumpage/version")
+    assert missing.status_code == 503
+    assert str(tmp_path) not in missing.text
+
+
+def test_simple_parquet_source(tmp_path):
+    import pyarrow as pa
+    import pyarrow.parquet as pq
+
+    path = tmp_path / "pipes.parquet"
+    pq.write_table(
+        pa.table({"pipe_id": [1, 2, 3], "diameter": [6, 12, 24]}), path
+    )
+    app = FastAPI()
+    bridge = DataBridge(app, public=True, sources={"pipes": path})
+    client = TestClient(app)
+    page = client.post(
+        "/api/data/pipes/query",
+        json={
+            "columns": ["pipe_id", "diameter"],
+            "filters": [{"column": "diameter", "op": "gte", "value": 12}],
+            "limit": 10,
+        },
+    )
+    assert page.status_code == 200, page.text
+    assert page.json()["rows"] == [
+        {"pipe_id": 2, "diameter": 12}, {"pipe_id": 3, "diameter": 24}
+    ]
+    assert client.get("/api/data/pipes/version").json()["version"] is not None
+    bridge.source("second", path)
+    assert client.get("/api/data/second/version").status_code == 200
+
+
+def test_no_implicit_public_data_or_sql_paths(tmp_path):
+    file = tmp_path / "secret.csv"
+    file.write_text("id\n1\n", encoding="utf-8")
+    with pytest.raises(ValueError, match="protected"):
+        DataBridge(FastAPI(), sources={"secret": file})
+    with pytest.raises(ValueError, match="source must be"):
+        DataBridge(FastAPI(), public=True, sources={"bad": "database.sqlite"})
+    with pytest.raises(ValueError, match="Dataset names"):
+        DataBridge(FastAPI(), public=True, sources={"../secret": file})
+
+
+def test_version_endpoint_respects_fastapi_auth():
+    def auth(x_token: str | None = Header(default=None)):
+        if x_token != "allowed":
+            raise HTTPException(status_code=403, detail="Forbidden")
+
+    app = FastAPI()
+    bridge = DataBridge(app, dependencies=[Depends(auth)])
+    bridge.relation("dynamic", lambda con, req: con.sql("SELECT 1 AS id"))
+    client = TestClient(app)
+    assert client.get("/api/data/dynamic/version").status_code == 403
+    response = client.get(
+        "/api/data/dynamic/version", headers={"X-Token": "allowed"}
+    )
+    assert response.status_code == 200
+    assert response.json() == {"version": None}
+
+
+def test_data_watch_demo_is_runnable_and_returns_expected_csv(tmp_path, monkeypatch):
+    import runpy
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "examples" / "data-watch"
+    monkeypatch.chdir(root)
+    module = runpy.run_path(str(root / "main.py"), run_name="data_watch_test")
+    app = module["app"]
+    client = TestClient(app)
+    response = client.post(
+        "/api/data/pumpage/query",
+        json={"columns": ["Date", "TotalWP"], "sort": [{"column": "Date"}], "limit": 10},
+    )
+    assert response.status_code == 200, response.text
+    rows = response.json()["rows"]
+    assert len(rows) == 6
+    assert rows[0]["Date"] == "2026-10-30"
+    assert rows[-1]["TotalWP"] == 368.6
+    assert client.get("/api/data/pumpage/version").status_code == 200

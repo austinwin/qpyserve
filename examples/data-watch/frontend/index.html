@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QPyServe | Live Pumpage</title>
+  <style>
+    :root { font: 15px/1.5 system-ui,sans-serif; color:#18324b;background:#f3f6fa }
+    * { box-sizing: border-box }
+    main { max-width: 900px; padding: 24px; margin: 30px auto }
+    h1 { margin: 0; font-size: 26px; letter-spacing: -.6px }
+    .sub { color: #65798b; margin: 0 0 24px }
+    .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(175px,1fr)); gap: 12px }
+    .card,.chart { background:white; border:1px solid #dde4ea; border-radius:12px; padding:16px }
+    .card span { display:block;color:#68798b;font-size:13px }
+    .card strong {font-size:27px;letter-spacing:-.7px}
+    .chart {margin-top:16px}
+    h2 {font-size:16px;margin:0 0 14px}
+    .bars {display:flex;align-items:end;gap:12px;height:180px;border-bottom:1px solid #c6d5df}
+    .slot {flex:1;min-width:0;display:flex;flex-direction:column;align-items:center;justify-content:end;height:100%}
+    .bar {width:100%;max-width:55px;background:#2573bb;border-radius:5px 5px 0 0;min-height:4px}
+    .slot small {font-size:10px;color:#738295;margin:4px 0 -22px;white-space:nowrap}
+    .status {font-size:12px;color:#456c51;margin-top:30px}
+    .error {color:#b42318}
+  </style>
+</head>
+<body>
+<main>
+  <h1>Water Production</h1>
+  <p class="sub">Synthetic sample data · MGD · Auto-refresh on CSV changes</p>
+  <div class="cards">
+    <div class="card"><span>Total water</span><strong id="total">—</strong></div>
+    <div class="card"><span>Surface water</span><strong id="surface">—</strong></div>
+    <div class="card"><span>Groundwater</span><strong id="ground">—</strong></div>
+  </div>
+  <div class="chart">
+    <h2>Daily total production</h2>
+    <div class="bars" id="bars" role="img" aria-label="Daily water production bar chart"></div>
+    <div id="status" class="status" role="status">Connecting to QPyServe Data Bridge...</div>
+  </div>
+</main>
+<script type="module">
+import { data } from "/api/data/_client.js";
+
+const fmt = value => Number(value).toFixed(1) + " MGD";
+const stop = data("pumpage").watch(({rows}) => {
+  const records = [...rows].sort((a,b)=>String(a.Date).localeCompare(String(b.Date)));
+  if (!records.length) return;
+  const latest = records.at(-1);
+  document.getElementById("total").textContent = fmt(latest.TotalWP);
+  document.getElementById("surface").textContent = fmt(latest.TotalSW);
+  document.getElementById("ground").textContent = fmt(latest.TotalGW);
+  const max = Math.max(1,...records.map(r=>Number(r.TotalWP)));
+  const bars = document.getElementById("bars");
+  bars.replaceChildren(...records.map(row => {
+    const slot = document.createElement("div");
+    slot.className = "slot";
+    const bar = document.createElement("div");
+    bar.className = "bar";
+    bar.style.height = (Number(row.TotalWP) / max * 100) + "%";
+    bar.title = String(row.Date) + ": " + fmt(row.TotalWP);
+    const label = document.createElement("small");
+    label.textContent = String(row.Date).slice(5);
+    slot.append(bar,label);
+    return slot;
+  }));
+  const status = document.getElementById("status");
+  status.classList.remove("error");
+  status.textContent = "Synced " + new Date().toLocaleTimeString()
+    + " · Edit data/pumpage.csv and save to see an update.";
+}, {
+  query: {limit: 100, sort: [{column: "Date"}]},
+  intervalMs: 3000,
+  onError(error) {
+    const status = document.getElementById("status");
+    status.classList.add("error");
+    status.textContent = "Sync failed: " + error.message;
+  }
+});
+
+addEventListener("pagehide", stop);
+</script>
+</body>
+</html>

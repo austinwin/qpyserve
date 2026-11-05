@@ -8,12 +8,13 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+import hashlib
 from importlib.util import find_spec
 import logging
 import math
 from pathlib import Path
 import re
-from typing import Any, Callable, Literal
+from typing import Any, Callable, Literal, Mapping
 
 from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
@@ -62,6 +63,14 @@ class DataQuery(BaseModel):
 class _Dataset:
     provider: Provider
     description: str = ""
+    revision: Callable[[], str | None] | None = None
+
+
+def _file_revision(path: Path) -> str:
+    """Cheap version token for a local file; never expose its server path."""
+    stat = path.stat()
+    fingerprint = f"{stat.st_mtime_ns}:{stat.st_size}".encode("ascii")
+    return hashlib.blake2b(fingerprint, digest_size=12).hexdigest()
 
 
 def _duckdb():
@@ -204,6 +213,7 @@ class DataBridge:
         dependencies: list[Any] | None = None,
         public: bool = False,
         max_limit: int = 10_000,
+        sources: Mapping[str, str | Path] | None = None,
     ) -> None:
         if not isinstance(app, FastAPI):
             raise TypeError("DataBridge expects a FastAPI app")
@@ -229,6 +239,19 @@ class DataBridge:
             return Response(script, media_type="text/javascript", headers={
                 "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff"
             })
+
+        @router.get("/{dataset}/version", include_in_schema=False)
+        def version(dataset: str):
+            item = self._get(dataset)
+            try:
+                revision = item.revision() if item.revision is not None else None
+            except OSError as exc:
+                _LOG.warning("Data Bridge source is not accessible: %s", dataset)
+                raise HTTPException(status_code=503, detail="Dataset source unavailable") from exc
+            return JSONResponse(
+                content={"version": revision},
+                headers={"Cache-Control": "private, no-store"},
+            )
 
         @router.get("/{dataset}", include_in_schema=True)
         def schema(dataset: str, request: Request):
@@ -301,6 +324,9 @@ class DataBridge:
 
         app.include_router(script_router)
         app.include_router(router)
+        if sources is not None:
+            for name, path in sources.items():
+                self.source(name, path)
 
     def _get(self, name: str) -> _Dataset:
         try:
@@ -308,23 +334,60 @@ class DataBridge:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Unknown dataset") from exc
 
-    def relation(self, name: str, provider: Provider, *, description: str = "") -> None:
-        """Register a per-request DuckDB relation provider; no client SQL is accepted."""
+    def relation(
+        self,
+        name: str,
+        provider: Provider,
+        *,
+        description: str = "",
+        revision: Callable[[], str | None] | None = None,
+    ) -> None:
+        """Register a per-request DuckDB relation provider; no client SQL is accepted.
+
+        The optional revision callback lets browser watchers skip unchanged queries.
+        Without a revision callback, watchers refetch on their polling interval.
+        """
         if not _DATASET_NAME.fullmatch(name) or name.startswith("_"):
             raise ValueError("Dataset names must start with a letter and use letters/numbers/_/-")
         if name in self._datasets:
             raise ValueError(f"Dataset already registered: {name}")
         if not callable(provider):
             raise TypeError("provider must be callable(conn, request)")
-        self._datasets[name] = _Dataset(provider=provider, description=description)
+        if revision is not None and not callable(revision):
+            raise TypeError("revision must be callable")
+        self._datasets[name] = _Dataset(
+            provider=provider, description=description, revision=revision
+        )
+
+    def source(self, name: str, path: str | Path, *, description: str = "") -> None:
+        """Register a CSV or Parquet file from a single path; detects format by suffix."""
+        source = Path(path).expanduser().resolve()
+        suffix = source.suffix.lower()
+        if suffix == ".csv":
+            self.relation(
+                name,
+                lambda con, _request: con.read_csv(str(source)),
+                description=description,
+                revision=lambda: _file_revision(source),
+            )
+        elif suffix in {".parquet", ".pq"}:
+            self.relation(
+                name,
+                lambda con, _request: con.read_parquet(str(source)),
+                description=description,
+                revision=lambda: _file_revision(source),
+            )
+        else:
+            raise ValueError("Data Bridge source must be a .csv, .parquet, or .pq file")
 
     def parquet(self, name: str, path: str | Path, *, description: str = "") -> None:
         """Read Parquet lazily. Path is server-owned and never accepted from the browser."""
-        source = str(Path(path).resolve())
+        source = Path(path).expanduser().resolve()
         self.relation(
             name,
-            lambda con, _request: con.read_parquet(source),
+            lambda con, _request: con.read_parquet(str(source)),
             description=description,
+            revision=lambda: _file_revision(source),
         )
 
     def _query_json(

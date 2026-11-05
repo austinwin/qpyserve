@@ -19,6 +19,91 @@ python -m pip install "qpyserve[data]==0.6.0"
 The `data` extra installs DuckDB and PyArrow. Ordinary QPyServe installations
 do **not** import or require either package.
 
+## Simpler workflow: register a file, subscribe to changes (unreleased)
+
+The simplest way to use Data Bridge now is to connect a CSV/Parquet file
+with a single Python statement and let the browser refresh when it changes.
+
+```python
+from fastapi import FastAPI
+from qpyserve import run
+from qpyserve.data import DataBridge
+
+app = FastAPI()
+DataBridge(app, public=True, sources={"pumpage": "data/pumpage.csv"})
+
+if __name__ == "__main__":
+    run(app, frontend="frontend")
+```
+
+In **plain JavaScript, React or Vue**:
+
+```javascript
+import { data } from "/api/data/_client.js";
+
+// onData receives a bounded page: {rows, limit, offset, has_more}.
+const stop = data("pumpage").watch(({rows}) => renderDashboard(rows), {
+  query: {limit: 500},
+  intervalMs: 5000,
+  onError: (error) => showError(error.message)
+});
+
+// Call stop() when the page, component, or dashboard is destroyed.
+```
+
+In React, cleanup can be one effect:
+
+```jsx
+import { useEffect, useState } from "react";
+import { data } from "/api/data/_client.js";
+
+function Dashboard() {
+  const [rows, setRows] = useState([]);
+
+  useEffect(() => data("pumpage").watch(
+    page => setRows(page.rows),
+    {query: {limit: 200}}
+  ), []);
+
+  return <pre>{JSON.stringify(rows, null, 2)}</pre>;
+}
+```
+
+For one-time reads, call `await data("pumpage").rows({limit: 100})`;
+this returns the array of rows directly. The older
+`dataset("pumpage").query(...)` interface remains supported.
+
+### What refresh actually does
+
+- For local `.csv`, `.parquet`, and `.pq` files, Data Bridge compares
+  file modification time and size via a cheap `GET /api/data/{name}/version`
+  request. The token is hashed and does not expose local paths.
+- If the file is unchanged, **no data query is run**. When it changes, the
+  browser requests a new bounded page and invokes the callback.
+- The default check interval is **5 seconds** (minimum 1 second). Polling
+  means updates may appear up to one interval late. It is not streaming.
+- For custom DuckDB relations, the version is `null` and the watch re-queries
+  at each interval. Provide `revision=lambda: your_version_token()` when
+  registering the relation to skip unchanged queries.
+- The watcher returns an unsubscribe function which aborts active HTTP calls.
+  A single watch should feed all charts using the same dataset where possible,
+  avoiding duplicate polling for every widget.
+- This is **source-change detection**, not automatic ingestion from REST APIs
+  or arbitrary databases. Prefer Parquet for large datasets, because CSV
+  schema inference and scanning can be substantially more expensive.
+- For reliable updates, write the new file fully and **replace it atomically**
+  instead of letting readers observe a half-written CSV or Parquet file.
+- The existing max query limit applies even to `.rows()` and `.watch()`.
+  This is not an unlimited all-rows download, auto chart generator, or
+  replacement for backend aggregation.
+
+`public=True` is **only** for public/demo data. Protected dashboards must
+use FastAPI authorization dependencies on DataBridge and apply tenant-specific
+row filtering in their relation providers.
+
+Run the [simple CSV dashboard demo](../examples/data-watch/README.md) to see
+edits to a CSV appear in a running browser automatically.
+
 ## Minimal backend: a Parquet dataset
 
 ```python

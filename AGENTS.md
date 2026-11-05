@@ -45,3 +45,11 @@ QPyServe is an intentionally thin integration layer. Maintain the smallest publi
 - Query execution must project/filter/page lazily on the backend with bounded limits. Avoid silently collecting an entire large dataset in Python or JavaScript.
 - Use per-request DuckDB connections and test Arrow IPC wire compatibility, tenant filtering and injection resistance.
 - Never claim zero-copy, effortless billion-row transfer or speedups without a representative benchmark.
+
+- Data Bridge's first-run API is `DataBridge(app, public=True, sources={"name": "data/file.csv"})`.
+  Keep source paths server-owned; do not make public access the default.
+- Browser `data(name).watch(...)` must check a cheap revision token before
+  re-querying file data, skip unchanged file versions, and abort requests on cleanup.
+  Non-versioned relation providers are intentionally polled each interval.
+- Preserve API compatibility with `DataBridge.relation`, `.parquet`, and
+  `dataset(name).query(...)`; never fetch entire large datasets by default.
