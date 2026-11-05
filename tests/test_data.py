@@ -5,6 +5,9 @@ from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
 import pytest
 
+pytest.importorskip("duckdb")
+pytest.importorskip("pyarrow")
+
 from qpyserve._data import DataBridge
 
 
