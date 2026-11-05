@@ -1,8 +1,8 @@
-# QPyServe Data Bridge (experimental, planned for 0.6.0)
+# QPyServe Data Bridge (experimental, introduced in 0.6.0)
 
 **Big data in Python. A real JavaScript frontend. Transfer only the data the
-screen needs.** This is an opt-in feature on the development branch; it is **not**
-included in PyPI QPyServe 0.5.0.
+screen needs.** This opt-in experimental feature is available in PyPI QPyServe
+0.6.0 and newer.
 
 QPyServe Data Bridge provides a small, controlled query protocol over DuckDB.
 It builds read-only, lazy DuckDB relations and pushes column projection,
@@ -13,7 +13,7 @@ Arrow IPC response for efficient columnar consumption.
 ## Install
 
 ```bash
-python -m pip install -e ".[data]"  # From a checkout of QPyServe
+python -m pip install "qpyserve[data]==0.6.0"
 ```
 
 The `data` extra installs DuckDB and PyArrow. Ordinary QPyServe installations
