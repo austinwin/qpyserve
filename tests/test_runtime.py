@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 
 from fastapi import FastAPI
@@ -87,6 +88,14 @@ def test_supervision_stops_both_processes_if_backend_crashes(monkeypatch, tmp_pa
     assert commands[1][0][0] == sys.executable
     assert ("--reload" in commands[1][0]) == (os.name != "nt")
     assert commands[1][1]["cwd"] == tmp_path
+    # Neither child redirects stdio: both emit logs to the launching terminal.
+    for _command, options in commands:
+        assert not any(stream in options for stream in ("stdin", "stdout", "stderr"))
+        if os.name == "nt":
+            # Do not create additional Windows terminal windows.
+            assert options["creationflags"] == subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            assert options["start_new_session"] is True
     assert stopped == [backend, vite]
 
 
