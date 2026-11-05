@@ -39,3 +39,9 @@ QPyServe is an intentionally thin integration layer. Maintain the smallest publi
 - Unsupported non-JSON, cookie and streaming operations must be reported; never generate incorrect client types.
 - Generated browser code uses same-origin native fetch so dev Trace correlation works without extra telemetry.
 - Generated TS must be verified with TypeScript type checking and live API/trace tests; production must not regenerate client source.
+
+- Data Bridge is opt-in and must never import DuckDB/Arrow for ordinary `run(...)` applications.
+- Keep Data Bridge registration explicitly public or protected by FastAPI dependencies; never accept browser SQL or file paths.
+- Query execution must project/filter/page lazily on the backend with bounded limits. Avoid silently collecting an entire large dataset in Python or JavaScript.
+- Use per-request DuckDB connections and test Arrow IPC wire compatibility, tenant filtering and injection resistance.
+- Never claim zero-copy, effortless billion-row transfer or speedups without a representative benchmark.

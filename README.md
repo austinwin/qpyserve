@@ -130,6 +130,33 @@ docker run --rm -p 10000:10000 my-app
 
 [Ship and deployment guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/SHIP.md)
 
+## Experimental: Data Bridge (not in PyPI 0.5.0)
+
+**Python for big data. JavaScript for the interface.** The development branch
+now includes an optional lazy-data bridge built on DuckDB and Apache Arrow.
+Python registers a Parquet dataset once; React, Vue, or plain HTML requests
+only selected columns, server-side filters, sort order and bounded pages.
+An Arrow IPC stream avoids JSON row conversion for analytical clients.
+
+```python
+from qpyserve.data import DataBridge
+
+bridge = DataBridge(app, public=True)  # Public data only!
+bridge.parquet("pipes", "data/pipes.parquet")
+```
+
+```js
+import { dataset } from "/api/data/_client.js";
+const page = await dataset("pipes").query({ limit: 100, columns: ["pipe_id", "diameter"] });
+```
+
+Install from GitHub main with the optional `[data]` extra to try this unreleased
+feature. **Data Bridge deliberately requires explicit public access or FastAPI
+authorization dependencies**; it never exposes local tables by default.
+
+[Data Bridge design, examples and limitations](https://github.com/austinwin/qpyserve/blob/main/docs/DATA_BRIDGE.md)
+· [Live million-row local demo](https://github.com/austinwin/qpyserve/tree/main/examples/data-bridge)
+
 ## Production and safety
 
 Build the frontend during CI/CD with `python main.py --build` and serve prebuilt assets using `python main.py --prod`. Node.js is not required in the production runtime for built Vite sites. Plain HTML needs no build.

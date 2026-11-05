@@ -1,5 +1,16 @@
 # Changelog
 
+## Unreleased — Data Bridge (experimental)
+
+- Optional `qpyserve[data]` extra adds DuckDB and Apache Arrow; the standard runtime has no new dependencies.
+- Opt-in `DataBridge(app, public=True)` or FastAPI-protected dataset registration; lazy Parquet and relation providers.
+- Server-side projection, safe allowlisted predicates, ordering and bounded pagination; no arbitrary SQL from browser requests.
+- JSON pages or streamed Arrow IPC record batches; standalone same-origin JS client for plain HTML, React and Vue.
+- Per-request DuckDB connections, cache-sensitive headers, and explicit controls against unintentional public exposure.
+- Million-row HTML demo and integration checks for query results, authorization, SQL injection safety, Arrow roundtrips and wheel contents.
+- This work is not part of the PyPI 0.5.0 release. See [Data Bridge documentation](docs/DATA_BRIDGE.md).
+
+
 Changes are grouped by published PyPI version. QPyServe follows an early-alpha release cycle.
 
 ## 0.5.0 — Typed API, Ship, and updated React/Vite example (2026-11-04)
