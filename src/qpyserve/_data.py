@@ -248,8 +248,8 @@ class DataBridge:
             item = self._get(dataset)
             try:
                 revision = item.revision() if item.revision is not None else None
-            except OSError as exc:
-                _LOG.warning("Data Bridge source is not accessible: %s", dataset)
+            except Exception as exc:
+                _LOG.warning("Data Bridge source version unavailable: %s", dataset)
                 raise HTTPException(status_code=503, detail="Dataset source unavailable") from exc
             return JSONResponse(
                 content={"version": revision},
