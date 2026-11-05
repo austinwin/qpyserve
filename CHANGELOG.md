@@ -2,6 +2,14 @@
 
 Changes are grouped by published PyPI version. QPyServe follows an early-alpha release cycle.
 
+## Unreleased
+
+### Fixed: Windows development terminal
+
+- Run supervised Vite and FastAPI processes in the invoking Windows terminal rather than opening separate console windows.
+- Preserve inherited Vite and Python stdout/stderr, including Uvicorn logs and tracebacks, while keeping Python reload, Vite HMR, and combined Ctrl+C shutdown.
+- Add regression checks for child process-group flags, inherited logging, and real cross-platform runtime integration. Development still uses two loopback listeners behind one browser URL; production already supports one listening port.
+
 ## 0.5.0 — Typed API, Ship, and updated React/Vite example (2026-11-04)
 
 ### Added: Typed API
