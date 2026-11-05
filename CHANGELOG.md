@@ -1,6 +1,8 @@
 # Changelog
 
-## Unreleased — Data Bridge (experimental)
+## 0.6.0 — Experimental Data Bridge and Windows developer experience (2026-11-04)
+
+### Added: Data Bridge (experimental)
 
 - Optional `qpyserve[data]` extra adds DuckDB and Apache Arrow; the standard runtime has no new dependencies.
 - Opt-in `DataBridge(app, public=True)` or FastAPI-protected dataset registration; lazy Parquet and relation providers.
@@ -8,18 +10,18 @@
 - JSON pages or streamed Arrow IPC record batches; standalone same-origin JS client for plain HTML, React and Vue.
 - Per-request DuckDB connections, cache-sensitive headers, and explicit controls against unintentional public exposure.
 - Million-row HTML demo and integration checks for query results, authorization, SQL injection safety, Arrow roundtrips and wheel contents.
-- This work is not part of the PyPI 0.5.0 release. See [Data Bridge documentation](docs/DATA_BRIDGE.md).
-
-
-Changes are grouped by published PyPI version. QPyServe follows an early-alpha release cycle.
-
-## Unreleased
+- Data Bridge is included in 0.6.0 but remains opt-in and experimental. Install `qpyserve[data]` to use DuckDB and Arrow. See [Data Bridge documentation](docs/DATA_BRIDGE.md).
 
 ### Fixed: Windows development terminal
 
 - Run supervised Vite and FastAPI processes in the invoking Windows terminal rather than opening separate console windows.
 - Preserve inherited Vite and Python stdout/stderr, including Uvicorn logs and tracebacks, while keeping Python reload, Vite HMR, and combined Ctrl+C shutdown.
 - Add regression checks for child process-group flags, inherited logging, and real cross-platform runtime integration. Development still uses two loopback listeners behind one browser URL; production already supports one listening port.
+
+### Compatibility and release
+
+- Standard `qpyserve` installations have no new data dependencies. Data Bridge needs explicit dataset registration and public access or FastAPI authorization dependencies.
+- Existing FastAPI, React and Vue entry points remain compatible; review the Data Bridge security, pagination and streaming limitations before production use.
 
 ## 0.5.0 — Typed API, Ship, and updated React/Vite example (2026-11-04)
 
