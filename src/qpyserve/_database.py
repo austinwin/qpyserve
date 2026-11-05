@@ -145,6 +145,9 @@ class DatabaseReader:
 
     def version(self) -> str | None:
         if self.source.updated_at is None:
+            # Validate configuration even when no change column was supplied.
+            # create_engine does not connect to the database at this point.
+            _ = self.engine
             return None
         sa = _sqlalchemy()
         column = self.table.c[self.source.updated_at]
