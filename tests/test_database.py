@@ -74,7 +74,7 @@ def test_one_line_database_registration(database):
     assert status.status_code == 200, status.text
     assert status.json() == {"version": "2026-11-01 00:00:00"}
     assert "sqlite" not in status.text
-    arrow = client.post("/api/data/pumpage/query?format=arrow", json={})
+    arrow = client.post("/api/data/pumpage/query?format=arrow", json={"limit": 50})
     assert arrow.status_code == 501
     assert "Arrow is not yet supported" in arrow.text
 
