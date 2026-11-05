@@ -257,3 +257,31 @@ jobs:
           npm install --no-save --no-package-lock typescript@5.9.3
           ./node_modules/.bin/tsc --strict --skipLibCheck --target ES2022 --module commonjs --moduleResolution node --lib DOM,ES2022 --outDir /tmp/qps-typed-compiled src/check.ts
           node /tmp/qps-typed-compiled/check.js
+
+  data-bridge-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Install opt-in big data dependencies
+        run: python -m pip install -e '.[data,test]'
+      - name: Real DuckDB million-row queries and streamed Arrow roundtrips
+        run: python -m pytest -q tests/test_data.py
+      - name: Verify standalone JS client syntax
+        run: node --input-type=module --check < src/qpyserve/_data_client.js
+      - name: Check wheel and source distribution include bridge assets
+        run: |
+          python -m build
+          python - <<'PY'
+          from glob import glob
+          from zipfile import ZipFile
+          with ZipFile(glob("dist/*.whl")[0]) as wheel:
+              names = set(wheel.namelist())
+              assert "qpyserve/_data.py" in names
+              assert "qpyserve/_data_client.js" in names
+          PY
