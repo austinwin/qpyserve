@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 const source = readFileSync("src/qpyserve/_data_client.js", "utf8");
-const { dataset } = await import(
+const { dataset, data } = await import(
   "data:text/javascript;base64," + Buffer.from(source).toString("base64")
 );
 
@@ -60,4 +60,64 @@ test("Arrow client returns binary, and errors retain HTTP status", async () => {
     () => bridge.query({limit: 1}),
     error => error.status === 403 && /Forbidden/.test(error.message)
   );
+});
+
+
+async function waitFor(condition, timeoutMs = 3500) {
+  const expires = Date.now() + timeoutMs;
+  while (!condition() && Date.now() < expires) {
+    await new Promise(resolve => setTimeout(resolve, 20));
+  }
+  assert.ok(condition(), "Timed out waiting for data event");
+}
+
+test("data() alias and rows() simplify a dashboard fetch", async () => {
+  globalThis.fetch = async (url) => {
+    assert.equal(String(url), "/api/data/pumpage/query?format=json");
+    return new Response(JSON.stringify({rows: [{mgd: 10}], has_more: false}), {
+      status: 200, headers: { "content-type": "application/json" }
+    });
+  };
+  assert.deepEqual(await data("pumpage").rows(), [{mgd: 10}]);
+});
+
+test("watch() refetches only when file version changes, then stops", async () => {
+  let revision = "first";
+  let fetches = 0;
+  const received = [];
+  const errors = [];
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith("/version")) {
+      return new Response(JSON.stringify({version: revision}), {
+        status: 200, headers: { "content-type": "application/json" }
+      });
+    }
+    assert.equal(String(url), "/api/data/pumpage/query?format=json");
+    fetches += 1;
+    return new Response(JSON.stringify({rows: [{seq: fetches}], has_more: false}), {
+      status: 200, headers: { "content-type": "application/json" }
+    });
+  };
+  const stop = data("pumpage").watch(
+    page => received.push(page.rows[0].seq),
+    { intervalMs: 1000, onError: error => errors.push(error) }
+  );
+  try {
+    await waitFor(() => received.length === 1);
+    await new Promise(resolve => setTimeout(resolve, 1120));
+    assert.equal(fetches, 1, "Unchanged sources must not repeat expensive query");
+    revision = "second";
+    await waitFor(() => received.length === 2);
+    assert.deepEqual(received, [1, 2]);
+    assert.equal(errors.length, 0);
+  } finally {
+    stop();
+  }
+});
+
+test("watch() rejects invalid polling and callback options", () => {
+  const source = data("pumpage");
+  assert.throws(() => source.watch(null), /callback/);
+  assert.throws(() => source.watch(() => {}, {intervalMs: 10}), /at least 1000/);
+  assert.throws(() => source.watch(() => {}, {onError: true}), /onError/);
 });
