@@ -60,9 +60,9 @@ def test_server_side_projection_filter_sort_and_pagination():
     result = response.json()
     assert result == {
         "rows": [
+            {"sensor_id": 999898, "zone": "north"},
             {"sensor_id": 999798, "zone": "north"},
             {"sensor_id": 999698, "zone": "north"},
-            {"sensor_id": 999598, "zone": "north"},
         ],
         "limit": 3,
         "offset": 1,
@@ -76,7 +76,7 @@ def test_literal_string_cannot_inject_sql():
     bridge.relation(
         "names",
         lambda con, req: con.sql(
-            "SELECT * FROM (VALUES (1, 'safe'), (2, 'x\' OR 1=1 --')) AS t(id, name)"
+            "SELECT * FROM (VALUES (1, 'safe'), (2, 'x'' OR 1=1 --')) AS t(id, name)"
         ),
     )
     client = TestClient(app)
