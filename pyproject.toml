@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qpyserve"
-version = "0.5.0"
+version = "0.6.0"
 description = "One-command FastAPI + Vite, typed TypeScript APIs, dev Trace and deploy-ready apps"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -34,8 +34,8 @@ qpyserve = "qpyserve._cli:main"
 [project.urls]
 Repository = "https://github.com/austinwin/qpyserve"
 Issues = "https://github.com/austinwin/qpyserve/issues"
-Documentation = "https://github.com/austinwin/qpyserve/tree/v0.5.0/docs"
-Changelog = "https://github.com/austinwin/qpyserve/blob/v0.5.0/CHANGELOG.md"
+Documentation = "https://github.com/austinwin/qpyserve/tree/v0.6.0/docs"
+Changelog = "https://github.com/austinwin/qpyserve/blob/v0.6.0/CHANGELOG.md"
 
 [tool.setuptools.packages.find]
 where = ["src"]

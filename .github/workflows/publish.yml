@@ -20,7 +20,7 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install package and release tools
-        run: python -m pip install --upgrade ".[test]" twine
+        run: python -m pip install --upgrade ".[test,data]" twine
       - name: Run Python tests
         run: python -m pytest -q
       - name: Verify version matches release tag
@@ -39,14 +39,19 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
-      - name: Validate development Trace JavaScript
-        run: node --check src/qpyserve/_trace_client.js
+      - name: Validate development Trace and Data Bridge JavaScript
+        run: |
+          node --check src/qpyserve/_trace_client.js
+          node --input-type=module --check < src/qpyserve/_data_client.js
+          node --test tests/data_client.test.mjs
+      - name: Test actual DuckDB and Arrow Data Bridge queries
+        run: python -m pytest -q tests/test_data.py
       - name: Verify React/Vite example builds
         working-directory: examples/counter-react/frontend
         run: npm install --no-audit --no-fund && npm run build
       - name: Build wheel and source distribution
         run: python -m build
-      - name: Verify 0.5.0 version and feature modules in release wheel
+      - name: Verify release version and feature modules in wheel
         run: |
           python - <<'PY'
           from glob import glob
@@ -61,7 +66,9 @@ jobs:
           with ZipFile(wheels[0]) as wheel:
               names = set(wheel.namelist())
               for path in ["qpyserve/_trace_client.js", "qpyserve/_client.py",
-                           "qpyserve/_ship.py", "qpyserve/_cli.py"]:
+                           "qpyserve/_ship.py", "qpyserve/_cli.py",
+                           "qpyserve/_data.py", "qpyserve/data.py",
+                           "qpyserve/_data_client.js"]:
                   assert path in names, f"Missing packaged file: {path}"
           PY
       - name: Verify trace client is included in release wheel
@@ -111,7 +118,7 @@ jobs:
         run: |
           export QPYSERVE_RELEASE_VERSION="$(python -c 'import pathlib,tomllib; print(tomllib.loads(pathlib.Path("pyproject.toml").read_text())["project"]["version"])')"
           for attempt in $(seq 1 12); do
-            if python -m pip install --no-cache-dir --index-url https://pypi.org/simple/ "qpyserve==$QPYSERVE_RELEASE_VERSION"; then
+            if python -m pip install --no-cache-dir --index-url https://pypi.org/simple/ "qpyserve[data]==$QPYSERVE_RELEASE_VERSION"; then
               break
             fi
             if [ "$attempt" -eq 12 ]; then
@@ -125,9 +132,11 @@ jobs:
           import qpyserve
           from qpyserve._client import generate_client
           from qpyserve._ship import prepare_ship
+          from qpyserve.data import DataBridge
           assert qpyserve.__version__ == os.environ["QPYSERVE_RELEASE_VERSION"]
           assert callable(generate_client)
           assert callable(prepare_ship)
+          assert callable(DataBridge)
           PY
           qpyserve --version
           qpyserve new /tmp/qpyserve-pypi-smoke --template react
