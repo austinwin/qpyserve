@@ -187,17 +187,20 @@ class DatabaseReader:
                 predicate = col.not_in(params) if item.op == "not_in" else col.in_(params)
             else:
                 value = _coerce_for_column(item.value, col)
-                comparisons = {
-                    "eq": lambda v: col.is_(None) if v is None else col == v,
-                    "ne": lambda v: col.is_not(None) if v is None else col != v,
-                    "gt": lambda v: col > v,
-                    "gte": lambda v: col >= v,
-                    "lt": lambda v: col < v,
-                    "lte": lambda v: col <= v,
-                }
                 if value is None and item.op not in ("eq", "ne"):
                     raise HTTPException(status_code=422, detail="Use is_null for null")
-                predicate = comparisons[item.op](value)
+                if item.op == "eq":
+                    predicate = col.is_(None) if value is None else col == value
+                elif item.op == "ne":
+                    predicate = col.is_not(None) if value is None else col != value
+                elif item.op == "gt":
+                    predicate = col > value
+                elif item.op == "gte":
+                    predicate = col >= value
+                elif item.op == "lt":
+                    predicate = col < value
+                else:
+                    predicate = col <= value
             query = query.where(predicate)
 
         if payload.sort:
