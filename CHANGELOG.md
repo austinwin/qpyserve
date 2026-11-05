@@ -1,5 +1,21 @@
 # Changelog
 
+## Unreleased — Simplified data sources and synchronization
+
+- Register local CSV or Parquet datasets with one line:
+  `DataBridge(app, public=True, sources={"name": "data/file.csv"})`.
+- `DataBridge.source(...)` infers CSV/Parquet readers and records a cheap,
+  path-private version token using file mtime and size.
+- New protected `GET /api/data/{name}/version` endpoint.
+- JavaScript `data(name).rows()` for bounded one-shot reads and
+  `data(name).watch(onData, {query, intervalMs, onError})` for automatic
+  source-change checks, re-query only when changed, and subscription cleanup.
+- No new runtime dependencies, no silent public data exposure, and no
+  automatic transfer of entire large datasets.
+- Small CSV dashboard demo and Python/Node regression tests.
+- This work is not included in the published 0.6.0 release.
+
+
 ## 0.6.0 — Experimental Data Bridge and Windows developer experience (2026-11-04)
 
 ### Added: Data Bridge (experimental)
