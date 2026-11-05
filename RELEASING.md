@@ -51,18 +51,15 @@ The publication workflow now verifies the installed PyPI wheel with a clean
 Python environment after upload, including version and CLI checks. A failed
 install verification must be investigated even if the upload job succeeded.
 
-## One-time 0.6.0 release trigger
+## QPyServe 0.6.0 publishing note
 
-The guarded `.github/workflows/release-once-v0.6.0.yml` workflow runs only
-when the release PR adds that workflow to `main`. It checks that the package
-version is exactly `0.6.0` and that the release tag does not exist, creates
-the annotated `v0.6.0` tag on the exact merged commit, and dispatches
-`publish.yml` against that tag using the repository's GitHub Actions token.
-This is needed because tags pushed with `GITHUB_TOKEN` do not themselves
-trigger other workflows. The regular PyPI publishing job still uses Trusted
-Publishing with the protected `pypi` environment and verifies a fresh PyPI
-installation. After publication, remove the one-time workflow in a cleanup PR.
-Do not rerun the one-time tag creator once `v0.6.0` has been created.
+Version `v0.6.0` was tagged from release commit
+`40bcc08490afb149fe066907be943f0903f43ce1` using a guarded, one-time
+GitHub Actions bootstrap. The bootstrap explicitly dispatched `publish.yml`
+against the tag because tag pushes made by `GITHUB_TOKEN` do not trigger
+workflows. The regular PyPI Trusted Publishing upload and fresh-install
+verification both passed. The temporary release bootstrap has been removed.
+Subsequent releases should follow the usual tag-driven checklist above.
 
 ## Troubleshooting
 
