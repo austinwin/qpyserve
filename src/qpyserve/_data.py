@@ -242,7 +242,7 @@ class DataBridge:
                         "description": item.description,
                         "columns": [
                             {"name": name, "type": str(typ)}
-                            for name, typ in zip(relation.columns, relation.types)
+                            for name, typ in zip(relation.columns, relation.types, strict=True)
                         ],
                         "default_limit": min(1000, self._max_limit),
                         "max_limit": self._max_limit,
@@ -342,7 +342,7 @@ class DataBridge:
             has_more = len(rows) > payload.limit
             rows = rows[:payload.limit]
             result = {
-                "rows": [dict(zip(names, row)) for row in rows],
+                "rows": [dict(zip(names, row, strict=True)) for row in rows],
                 "limit": payload.limit,
                 "offset": payload.offset,
                 "has_more": has_more,
