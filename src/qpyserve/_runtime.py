@@ -97,9 +97,11 @@ def _supervise_dev(
     restart only the backend; Uvicorn's Windows CTRL_C_EVENT can otherwise
     interrupt other console processes.
     """
-    # Uvicorn reload uses console control events on Windows. Separate consoles
-    # prevent a worker reload from interrupting QPyServe or its parent shell.
-    kwargs = ({"creationflags": subprocess.CREATE_NEW_CONSOLE}
+    # Inherit the invoking terminal for combined Vite and FastAPI logs.
+    # On Windows a separate process group (not a new console) prevents child
+    # console-control events from interrupting the supervisor. Shutdown still
+    # terminates both child process trees via _stop_process().
+    kwargs = ({"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
               if os.name == "nt" else {"start_new_session": True})
     children: list[tuple[str, subprocess.Popen]] = []
     previous_handlers = {}

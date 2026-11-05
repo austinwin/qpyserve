@@ -34,6 +34,8 @@ python main.py
 
 React and Vue require Node.js or a compatible JavaScript runtime/package manager. QPyServe installs **project** dependencies when missing and starts Vite with hot-module replacement (HMR). It does not install Node.js itself.
 
+**One development terminal and URL:** Vite and FastAPI run as supervised child processes and print their normal stdout/stderr (including Python logs, tracebacks, and Vite updates) in the terminal where you ran `python main.py`; on Windows they do not open separate console windows. Open only `http://localhost:1111`. Internally, Vite listens on loopback port 1111 and proxies API requests to FastAPI on loopback port 1112; both ports are local-only in development. Press Ctrl+C in the parent terminal to stop both processes. This does not combine them into one process or provide interactive Python step-through debugging automatically; attach your IDE debugger to the backend when needed. For **one listening port**, build and run in production mode with `python main.py --prod --build`.
+
 ## Integrate an existing FastAPI app
 
 ```python

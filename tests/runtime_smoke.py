@@ -120,7 +120,12 @@ def main() -> None:
             time.sleep(0.3)
         assert port_closed(port), "Vite leaked frontend port after shutdown"
         assert port_closed(port + 1), "Uvicorn leaked backend port after shutdown"
-        print("Proxy, Trace, Python reload, clean shutdown: PASS")
+        # Both processes must write through the launcher's inherited output
+        # stream, including on Windows when no extra console is created.
+        output = logfile.read_text(encoding="utf-8", errors="replace")
+        for marker in ("VITE", "Uvicorn running", "[qpyserve] http://localhost:", "GET /api/hello"):
+            assert marker in output, f"Missing {marker!r} in combined logs:\n{output[-6000:]}"
+        print("Proxy, Trace, combined logs, Python reload, clean shutdown: PASS")
 
 
 if __name__ == "__main__":
