@@ -8,7 +8,7 @@
 
 QPyServe runs ordinary [FastAPI](https://fastapi.tiangolo.com/) applications with plain HTML/JavaScript, React, Vue, or other [Vite](https://vite.dev/)-based frontends. It keeps your frontend and backend as normal source files; it does **not** replace either framework.
 
-**New in 0.5.0:** Generate a typed TypeScript client from FastAPI/Pydantic (**API**), correlate browser failures with backend handlers (**Trace**), and prepare a Docker/Render deployment (**Ship**). See the [0.5.0 changelog](https://github.com/austinwin/qpyserve/blob/v0.5.0/CHANGELOG.md), [Typed API guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/TYPED_API.md), and [Ship guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/SHIP.md).
+**New in 0.6.0:** Optional experimental **Data Bridge** for bounded DuckDB/Parquet queries and Arrow transfer, plus **one Windows development terminal** for Vite and FastAPI logs. The regular install has no new data dependencies. See the [changelog](CHANGELOG.md), [Data Bridge guide](docs/DATA_BRIDGE.md), [Typed API guide](docs/TYPED_API.md), and [Ship guide](docs/SHIP.md).
 
 ## Quick start
 
@@ -132,10 +132,10 @@ docker run --rm -p 10000:10000 my-app
 
 [Ship and deployment guide](https://github.com/austinwin/qpyserve/blob/v0.5.0/docs/SHIP.md)
 
-## Experimental: Data Bridge (not in PyPI 0.5.0)
+## Experimental: Data Bridge (opt-in in 0.6.0)
 
-**Python for big data. JavaScript for the interface.** The development branch
-now includes an optional lazy-data bridge built on DuckDB and Apache Arrow.
+**Python for big data. JavaScript for the interface.** QPyServe 0.6.0
+includes an optional experimental lazy-data bridge built on DuckDB and Apache Arrow.
 Python registers a Parquet dataset once; React, Vue, or plain HTML requests
 only selected columns, server-side filters, sort order and bounded pages.
 An Arrow IPC stream avoids JSON row conversion for analytical clients.
@@ -152,12 +152,12 @@ import { dataset } from "/api/data/_client.js";
 const page = await dataset("pipes").query({ limit: 100, columns: ["pipe_id", "diameter"] });
 ```
 
-Install from GitHub main with the optional `[data]` extra to try this unreleased
+Install with `python -m pip install "qpyserve[data]==0.6.0"` to try this experimental
 feature. **Data Bridge deliberately requires explicit public access or FastAPI
 authorization dependencies**; it never exposes local tables by default.
 
-[Data Bridge design, examples and limitations](https://github.com/austinwin/qpyserve/blob/main/docs/DATA_BRIDGE.md)
-· [Live million-row local demo](https://github.com/austinwin/qpyserve/tree/main/examples/data-bridge)
+[Data Bridge design, examples and limitations](https://github.com/austinwin/qpyserve/blob/v0.6.0/docs/DATA_BRIDGE.md)
+· [Live million-row local demo](https://github.com/austinwin/qpyserve/tree/v0.6.0/examples/data-bridge)
 
 ## Production and safety
 
