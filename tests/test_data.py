@@ -284,3 +284,24 @@ def test_version_endpoint_respects_fastapi_auth():
     )
     assert response.status_code == 200
     assert response.json() == {"version": None}
+
+
+def test_data_watch_demo_is_runnable_and_returns_expected_csv(tmp_path, monkeypatch):
+    import runpy
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[1] / "examples" / "data-watch"
+    monkeypatch.chdir(root)
+    module = runpy.run_path(str(root / "main.py"), run_name="data_watch_test")
+    app = module["app"]
+    client = TestClient(app)
+    response = client.post(
+        "/api/data/pumpage/query",
+        json={"columns": ["Date", "TotalWP"], "sort": [{"column": "Date"}], "limit": 10},
+    )
+    assert response.status_code == 200, response.text
+    rows = response.json()["rows"]
+    assert len(rows) == 6
+    assert rows[0]["Date"] == "2026-10-30"
+    assert rows[-1]["TotalWP"] == 368.6
+    assert client.get("/api/data/pumpage/version").status_code == 200
