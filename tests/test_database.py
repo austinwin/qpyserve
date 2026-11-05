@@ -2,15 +2,13 @@
 from __future__ import annotations
 
 from datetime import datetime
-import os
-
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.testclient import TestClient
 import pytest
 
-sa = pytest.importorskip("sqlalchemy")
-
 from qpyserve.data import DataBridge, db
+
+sa = pytest.importorskip("sqlalchemy")
 
 
 @pytest.fixture()
@@ -120,7 +118,7 @@ def test_database_validates_predicates_and_limits(database, item):
         "pumpage": db("DailyPumpage", url_env="TEST_DB_URL")
     })
     client = TestClient(app)
-    resp = client.post("/api/data/pumpage/query", json=item)
+    resp = client.post("/api/data/pumpage/query", json={"limit": 50, **item})
     if item.get("filters", [{}])[0].get("value") == "a' OR 1=1 --":
         assert resp.status_code == 200
         assert resp.json()["rows"] == []
