@@ -104,6 +104,111 @@ row filtering in their relation providers.
 Run the [simple CSV dashboard demo](../examples/data-watch/README.md) to see
 edits to a CSV appear in a running browser automatically.
 
+## Live SQL databases: SQL Server, PostgreSQL, and MySQL (unreleased)
+
+QPyServe can register a **database table or view** as a Data Bridge source.
+The SQL database does the filtering, sorting, projection, and paging itself.
+It does **not** copy the table into DuckDB or the browser.
+
+Install the lightweight database extra and your chosen driver:
+
+```bash
+pip install "qpyserve[database]"  # SQLAlchemy
+pip install pyodbc               # SQL Server, plus Microsoft ODBC Driver on the host
+# or: pip install psycopg[binary] # PostgreSQL
+# or: pip install pymysql         # MySQL
+```
+
+In server environment variables (never frontend JavaScript), set a
+SQLAlchemy connection URL, for example `DWO_DB_URL`. For SQL Server, a
+server-admin-configured DSN is one option:
+
+```text
+DWO_DB_URL=mssql+pyodbc://@DWO_READONLY_DSN
+```
+
+The connection URI depends on the database driver and your authentication.
+Use a restricted **read-only account** with permission for only the approved
+tables or, preferably, read-only views. Encrypt DB connections in production.
+
+**Backend:**
+
+```python
+from fastapi import Depends, FastAPI
+from qpyserve.data import DataBridge, db
+
+app = FastAPI()
+
+# For internal/private dashboards, protect every data route:
+bridge = DataBridge(
+    app,
+    dependencies=[Depends(require_user)],
+    sources={
+        "pumpage": db("dbo.DailyPumpage", url_env="DWO_DB_URL",
+                      updated_at="ModifiedAt"),
+    },
+)
+```
+
+`require_user` is your application's existing FastAPI authorization
+dependency. It is not supplied automatically by QPyServe. If you do **not**
+have a `ModifiedAt` or equivalent column, omit `updated_at`.
+
+**Frontend (same API for files and SQL servers):**
+
+```javascript
+import { data } from "/api/data/_client.js";
+
+const stop = data("pumpage").watch(
+  ({rows}) => updateDashboard(rows),
+  {query: {columns: ["Date", "TotalWP"], limit: 100, sort: [{column: "Date", desc: true}]}}
+);
+```
+
+The database source is registered server-side once and accessed through
+a SQLAlchemy connection pool. Backend queries are generated with bound
+parameters, and only registered columns may be filtered or selected.
+Arbitrary SQL provided by browser users is never executed.
+
+**Supported first-release scope:** standard SQLAlchemy table/view reflection
+and JSON pages using DB-side `WHERE`, `ORDER BY`, `LIMIT/OFFSET` or native
+dialect equivalents. Supported driver/dialect combinations depend on
+SQLAlchemy and the installed driver. Automated integration coverage uses a
+real SQLite database and validates SQL Server SQL compilation; it does **not**
+claim a live PostgreSQL, MySQL or SQL Server integration test.
+
+### Database synchronization and performance
+
+- With `updated_at="ModifiedAt"`, a cheap **MAX(ModifiedAt)** query supplies
+  the source version. The browser only refetches the bounded data page
+  when that maximum value changes. Put an index on this column for efficient
+  version checks on large tables.
+- This timestamp check **does not catch deletions**, nor updates that do not
+  change the maximum timestamp. Use a database-maintained change version,
+  CDC/notification, or full polling if stronger freshness is required.
+- Without `updated_at`, the browser re-queries a bounded page on every poll.
+  Default polling is five seconds per watcher. For busy shared dashboards,
+  use a less frequent interval and consider server-side shared caching.
+- Database queries stay on the DB server, rather than pulling full tables into
+  DuckDB first. That avoids unnecessary data movement, but it also means
+  SQL database indexes, query plans, database load, and network latency
+  determine the performance.
+- For meaningful totals/KPIs over huge tables, use a database view that
+  computes the desired aggregation server-side. **Do not sum a bounded page
+  and claim it represents the whole table.** A general-purpose aggregation
+  API is not yet included.
+- Database views are the preferred way to expose an existing custom SQL
+  query safely. This initial API intentionally does not let browser clients
+  run raw SQL or configure their own table names.
+- Authentication dependencies guard the endpoints, but **do not automatically
+  apply tenant row-level security**. Expose only approved restricted views
+  or use database-enforced row-level security. Do not expose broad tables
+  to users with different data access requirements.
+- The database adapter currently returns JSON, not Arrow. Files and DuckDB
+  relations retain their Arrow support.
+- The URI is read lazily from `url_env`. Missing credentials and query failures
+  produce generic HTTP 503 errors without disclosing the connection string.
+
 ## Minimal backend: a Parquet dataset
 
 ```python

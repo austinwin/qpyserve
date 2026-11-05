@@ -53,3 +53,14 @@ QPyServe is an intentionally thin integration layer. Maintain the smallest publi
   Non-versioned relation providers are intentionally polled each interval.
 - Preserve API compatibility with `DataBridge.relation`, `.parquet`, and
   `dataset(name).query(...)`; never fetch entire large datasets by default.
+
+- Server-side SQL database sources are registered with `db(table, url_env=...)`;
+  use SQLAlchemy's bound parameters and dialect-specific pagination. Never
+  interpolate browser filter values, SQL fragments, or table names.
+- Database connections and credentials stay server-side. Prefer a database
+  read-only user restricted to approved views; FastAPI auth alone does not
+  provide per-tenant row filtering.
+- `updated_at` uses MAX(timestamp), which may miss deletes or unchanged-max
+  updates; don't claim CDC or true real-time semantics.
+- Keep `qpyserve[database]` optional, and don't import SQLAlchemy in ordinary
+  QPyServe or file-only Data Bridge startup paths.

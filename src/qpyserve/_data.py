@@ -21,6 +21,8 @@ from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
 
+from ._database import DatabaseReader, DatabaseSource
+
 _LOG = logging.getLogger("qpyserve.data")
 _DATASET_NAME = re.compile(r"^[A-Za-z][A-Za-z0-9_-]{0,63}$")
 _MAX_FILTERS = 20
@@ -61,9 +63,10 @@ class DataQuery(BaseModel):
 
 @dataclass(frozen=True)
 class _Dataset:
-    provider: Provider
+    provider: Provider | None = None
     description: str = ""
     revision: Callable[[], str | None] | None = None
+    database: DatabaseReader | None = None
 
 
 def _file_revision(path: Path) -> str:
@@ -213,7 +216,7 @@ class DataBridge:
         dependencies: list[Any] | None = None,
         public: bool = False,
         max_limit: int = 10_000,
-        sources: Mapping[str, str | Path] | None = None,
+        sources: Mapping[str, str | Path | DatabaseSource] | None = None,
     ) -> None:
         if not isinstance(app, FastAPI):
             raise TypeError("DataBridge expects a FastAPI app")
@@ -245,8 +248,8 @@ class DataBridge:
             item = self._get(dataset)
             try:
                 revision = item.revision() if item.revision is not None else None
-            except OSError as exc:
-                _LOG.warning("Data Bridge source is not accessible: %s", dataset)
+            except Exception as exc:
+                _LOG.warning("Data Bridge source version unavailable: %s", dataset)
                 raise HTTPException(status_code=503, detail="Dataset source unavailable") from exc
             return JSONResponse(
                 content={"version": revision},
@@ -256,6 +259,26 @@ class DataBridge:
         @router.get("/{dataset}", include_in_schema=True)
         def schema(dataset: str, request: Request):
             item = self._get(dataset)
+            if item.database is not None:
+                try:
+                    return JSONResponse(
+                        content={
+                            "name": dataset,
+                            "description": item.description,
+                            "columns": item.database.schema(),
+                            "default_limit": min(1000, self._max_limit),
+                            "max_limit": self._max_limit,
+                            "formats": ["json"],
+                        },
+                        headers={"Cache-Control": "private, no-store"},
+                    )
+                except HTTPException:
+                    raise
+                except Exception as exc:
+                    _LOG.error("Data Bridge database schema is unavailable")
+                    raise HTTPException(
+                        status_code=503, detail="Database source unavailable"
+                    ) from exc
             conn = _duckdb().connect(database=":memory:")
             try:
                 relation = item.provider(conn, request)
@@ -298,6 +321,11 @@ class DataBridge:
                 "X-Content-Type-Options": "nosniff",
             }
             if format == "arrow":
+                if item.database is not None:
+                    raise HTTPException(
+                        status_code=501,
+                        detail="Arrow is not yet supported for database table sources",
+                    )
                 if find_spec("pyarrow") is None:
                     raise HTTPException(
                         status_code=501,
@@ -334,6 +362,13 @@ class DataBridge:
         except KeyError as exc:
             raise HTTPException(status_code=404, detail="Unknown dataset") from exc
 
+    def _register(self, name: str, item: _Dataset) -> None:
+        if not _DATASET_NAME.fullmatch(name) or name.startswith("_"):
+            raise ValueError("Dataset names must start with a letter and use letters/numbers/_/-")
+        if name in self._datasets:
+            raise ValueError(f"Dataset already registered: {name}")
+        self._datasets[name] = item
+
     def relation(
         self,
         name: str,
@@ -347,20 +382,29 @@ class DataBridge:
         The optional revision callback lets browser watchers skip unchanged queries.
         Without a revision callback, watchers refetch on their polling interval.
         """
-        if not _DATASET_NAME.fullmatch(name) or name.startswith("_"):
-            raise ValueError("Dataset names must start with a letter and use letters/numbers/_/-")
-        if name in self._datasets:
-            raise ValueError(f"Dataset already registered: {name}")
         if not callable(provider):
             raise TypeError("provider must be callable(conn, request)")
         if revision is not None and not callable(revision):
             raise TypeError("revision must be callable")
-        self._datasets[name] = _Dataset(
-            provider=provider, description=description, revision=revision
+        self._register(
+            name, _Dataset(provider=provider, description=description, revision=revision)
         )
 
-    def source(self, name: str, path: str | Path, *, description: str = "") -> None:
-        """Register a CSV or Parquet file from a single path; detects format by suffix."""
+    def source(
+        self,
+        name: str,
+        path: str | Path | DatabaseSource,
+        *,
+        description: str = "",
+    ) -> None:
+        """Register a CSV, Parquet or server-side SQL database table."""
+        if isinstance(path, DatabaseSource):
+            reader = DatabaseReader(path)
+            self._register(
+                name,
+                _Dataset(database=reader, description=description, revision=reader.version),
+            )
+            return
         source = Path(path).expanduser().resolve()
         suffix = source.suffix.lower()
         if suffix == ".csv":
@@ -397,6 +441,17 @@ class DataBridge:
         request: Request,
         headers: dict[str, str],
     ):
+        if item.database is not None:
+            try:
+                result = item.database.query_page(payload, self._max_limit)
+                return JSONResponse(content=jsonable_encoder(result), headers=headers)
+            except HTTPException:
+                raise
+            except Exception as exc:
+                _LOG.error("Data Bridge database query failed")
+                raise HTTPException(
+                    status_code=503, detail="Database source unavailable"
+                ) from exc
         conn = _duckdb().connect(database=":memory:")
         try:
             relation = _apply_query(item.provider(conn, request), payload, self._max_limit)

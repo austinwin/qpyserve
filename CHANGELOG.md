@@ -1,5 +1,24 @@
 # Changelog
 
+## Unreleased — Database-server Data Bridge sources
+
+- Optional `qpyserve[database]` installs SQLAlchemy. SQL Server, PostgreSQL,
+  MySQL and other SQLAlchemy-supported databases use their respective
+  separately installed drivers.
+- `db("dbo.DailyPumpage", url_env="DWO_DB_URL", updated_at="ModifiedAt")`
+  registers a server-side database table/view inside `DataBridge(sources=...)`.
+- Filtering, column projection, sorting and bounded pagination execute on the
+  database server using bound parameters; no full-table DuckDB import.
+- Existing `data(name).rows()` and `.watch()` JavaScript APIs work unchanged.
+  Optional `updated_at` uses `MAX` for change checks; without it, re-query
+  bounded pages on the watch interval.
+- Registered databases offer JSON pages initially; Arrow is still limited
+  to DuckDB/Parquet sources. No arbitrary client SQL, automatic RLS, or
+  server-side aggregates yet.
+- Integration tests exercise SQLite execution and SQL Server SQL compilation.
+  This is not part of published QPyServe 0.6.0.
+
+
 ## Unreleased — Simplified data sources and synchronization
 
 - Register local CSV or Parquet datasets with one line:
