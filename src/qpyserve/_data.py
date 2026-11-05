@@ -15,7 +15,7 @@ from pathlib import Path
 import re
 from typing import Any, Callable, Literal
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Request
+from fastapi import APIRouter, FastAPI, HTTPException, Request
 from fastapi.encoders import jsonable_encoder
 from fastapi.responses import JSONResponse, Response, StreamingResponse
 from pydantic import BaseModel, ConfigDict, Field
@@ -218,9 +218,12 @@ class DataBridge:
             raise ValueError("max_limit must be between 1 and 100000")
         self._datasets: dict[str, _Dataset] = {}
         self._max_limit = max_limit
+        # This JavaScript module is public static code. Authenticated data routes
+        # remain separately protected, including metadata and queries.
+        script_router = APIRouter(prefix=prefix)
         router = APIRouter(prefix=prefix, dependencies=dependencies or [])
 
-        @router.get("/_client.js", include_in_schema=False)
+        @script_router.get("/_client.js", include_in_schema=False)
         def client_script():
             script = Path(__file__).with_name("_data_client.js").read_text("utf-8")
             return Response(script, media_type="text/javascript", headers={
@@ -277,6 +280,18 @@ class DataBridge:
                         status_code=501,
                         detail="Arrow responses require python -m pip install 'qpyserve[data]'",
                     )
+                # Preflight validation must happen before streaming sends HTTP 200.
+                # No rows are fetched here; DuckDB only binds the lazy query.
+                conn = _duckdb().connect(database=":memory:")
+                try:
+                    _apply_query(item.provider(conn, request), payload, self._max_limit)
+                except HTTPException:
+                    raise
+                except Exception as exc:
+                    _LOG.exception("Data Bridge Arrow query could not be prepared")
+                    raise HTTPException(status_code=422, detail="Invalid dataset query") from exc
+                finally:
+                    conn.close()
                 return StreamingResponse(
                     self._stream_arrow(item, payload, request),
                     media_type=_ARROW_MIME,
@@ -284,6 +299,7 @@ class DataBridge:
                 )
             return self._query_json(item, payload, request, headers)
 
+        app.include_router(script_router)
         app.include_router(router)
 
     def _get(self, name: str) -> _Dataset:
