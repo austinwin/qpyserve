@@ -159,6 +159,34 @@ authorization dependencies**; it never exposes local tables by default.
 [Data Bridge design, examples and limitations](https://github.com/austinwin/qpyserve/blob/v0.6.0/docs/DATA_BRIDGE.md)
 · [Live million-row local demo](https://github.com/austinwin/qpyserve/tree/v0.6.0/examples/data-bridge)
 
+### Easiest Data Bridge workflow (next update, unreleased)
+
+Register an existing local CSV or Parquet file once. Your dashboard
+can observe changes without hand-written REST routes or polling logic:
+
+```python
+from qpyserve.data import DataBridge
+DataBridge(app, public=True, sources={"pumpage": "data/pumpage.csv"})
+```
+
+```js
+import { data } from "/api/data/_client.js";
+const stop = data("pumpage").watch(({rows}) => renderDashboard(rows));
+```
+
+The JavaScript callback receives a bounded page; reuse it for all charts using
+that data. The browser checks a cheap file-change token every five seconds by
+default, and only refreshes the result when a CSV/Parquet file changes.
+Plain JavaScript, React, and Vue are supported; no separate npm package or
+dashboard framework is required.
+
+**Security:** `public=True` is only for intentionally public data. Private
+dashboards must use FastAPI authorization dependencies. This new convenience
+API is merged only after CI checks and is **not part of PyPI 0.6.0**.
+
+[Simple sync demo](examples/data-watch/README.md) ·
+[Source registration, query limits and refresh behavior](docs/DATA_BRIDGE.md)
+
 ## Production and safety
 
 Build the frontend during CI/CD with `python main.py --build` and serve prebuilt assets using `python main.py --prod`. Node.js is not required in the production runtime for built Vite sites. Plain HTML needs no build.
