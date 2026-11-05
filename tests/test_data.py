@@ -192,7 +192,7 @@ def test_js_module_is_same_origin():
 
 def test_simple_csv_source_and_file_refresh(tmp_path):
     csv = tmp_path / "pumpage.csv"
-    csv.write_text("day,mgd\\n1,20\\n2,30\\n", encoding="utf-8")
+    csv.write_text("day,mgd\n1,20\n2,30\n", encoding="utf-8")
     app = FastAPI()
     DataBridge(app, public=True, sources={"pumpage": csv})
     client = TestClient(app)
@@ -215,7 +215,7 @@ def test_simple_csv_source_and_file_refresh(tmp_path):
     assert query.json()["rows"] == [{"day": 1, "mgd": 20}, {"day": 2, "mgd": 30}]
 
     # Changing the file should not require restarting FastAPI or resetting cache.
-    csv.write_text("day,mgd\\n1,20\\n2,30\\n3,100\\n", encoding="utf-8")
+    csv.write_text("day,mgd\n1,20\n2,30\n3,100\n", encoding="utf-8")
     second = client.get("/api/data/pumpage/version")
     assert second.status_code == 200
     assert second.json()["version"] != first_version
@@ -260,7 +260,7 @@ def test_simple_parquet_source(tmp_path):
 
 def test_no_implicit_public_data_or_sql_paths(tmp_path):
     file = tmp_path / "secret.csv"
-    file.write_text("id\\n1\\n", encoding="utf-8")
+    file.write_text("id\n1\n", encoding="utf-8")
     with pytest.raises(ValueError, match="protected"):
         DataBridge(FastAPI(), sources={"secret": file})
     with pytest.raises(ValueError, match="source must be"):
