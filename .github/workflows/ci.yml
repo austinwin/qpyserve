@@ -269,7 +269,7 @@ jobs:
         with:
           node-version: '22'
       - name: Install opt-in big data dependencies
-        run: python -m pip install -e '.[data,test]'
+        run: python -m pip install -e '.[data,database,test]'
       - name: Real DuckDB million-row queries and streamed Arrow roundtrips
         run: python -m pytest -q tests/test_data.py
       - name: Exercise browser client with mock fetch and binary response
