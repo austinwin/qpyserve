@@ -187,6 +187,37 @@ API is merged only after CI checks and is **not part of PyPI 0.6.0**.
 [Simple sync demo](examples/data-watch/README.md) ·
 [Source registration, query limits and refresh behavior](docs/DATA_BRIDGE.md)
 
+### Database server sources (next update, not in 0.6.0)
+
+Use the **same frontend API** for a database server as for CSV or Parquet.
+The SQL database handles filtering, sorting and pagination; QPyServe does
+not download entire tables before answering a dashboard request.
+
+```python
+from qpyserve.data import DataBridge, db
+
+DataBridge(app, dependencies=[Depends(require_user)], sources={
+    "pumpage": db("dbo.DailyPumpage", url_env="DWO_DB_URL",
+                  updated_at="ModifiedAt")
+})
+```
+
+```js
+import { data } from "/api/data/_client.js";
+const stop = data("pumpage").watch(({rows}) => updateDashboard(rows));
+```
+
+Set the `DWO_DB_URL` SQLAlchemy URL on the **server**, with a read-only
+account, and install `qpyserve[database]` plus an appropriate database
+driver. Optional `updated_at` enables a change-version check; without it,
+the dashboard polls a bounded query.
+
+The first adapter handles registered tables or views, not arbitrary
+browser-supplied SQL. Use SQL views for custom business queries and
+database-enforced row restrictions where needed.
+
+[Database sources guide](docs/DATA_BRIDGE.md)
+
 ## Production and safety
 
 Build the frontend during CI/CD with `python main.py --build` and serve prebuilt assets using `python main.py --prod`. Node.js is not required in the production runtime for built Vite sites. Plain HTML needs no build.
