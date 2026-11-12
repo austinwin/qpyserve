@@ -51,6 +51,14 @@ The publication workflow now verifies the installed PyPI wheel with a clean
 Python environment after upload, including version and CLI checks. A failed
 install verification must be investigated even if the upload job succeeded.
 
+## QPyServe 0.7.0 release scope
+
+Version 0.7.0 includes the Node-free dashboard starter, CSV/Parquet watchers,
+and SQL table/view sources. Release verification must include generated
+dashboard packaging, a clean `qpyserve[data]==0.7.0` installation, optional
+database tests, and an end-to-end CSV query. The release tag must point to
+the exact commit whose wheel was uploaded.
+
 ## QPyServe 0.6.0 publishing note
 
 Version `v0.6.0` was tagged from release commit
