@@ -51,6 +51,16 @@ The publication workflow now verifies the installed PyPI wheel with a clean
 Python environment after upload, including version and CLI checks. A failed
 install verification must be investigated even if the upload job succeeded.
 
+## QPyServe 0.7.1 verified publication (2026-11-12)
+
+Release tag `v0.7.1` points to `5b605e5f35efbc6ead73895d27a9e86e8bcc3f9a`.
+The GitHub Actions release workflow completed successfully:
+[Publish to PyPI #11](https://github.com/austinwin/qpyserve/actions/runs/43332207287).
+Build/tests, PyPI Trusted Publishing (OIDC) upload, and clean installation
+from the official PyPI index all passed. The one-time bootstrap workflow has
+been removed after the verified release. The previous v0.7.0 tag remains
+unpublished; do not reuse or force-move it.
+
 ## QPyServe 0.7.1 recovery (2026-11-12)
 
 The v0.7.0 tag was created, but the upload did **not** happen. The 0.7.0
