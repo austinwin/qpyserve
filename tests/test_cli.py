@@ -102,3 +102,43 @@ def test_starters_are_packaged_as_resources() -> None:
     for template in ("html", "react", "vue", "dashboard"):
         assert root.joinpath(template, "frontend", "index.html").is_file()
     assert root.joinpath("dashboard", "data", "sample.csv").is_file()
+
+
+def test_dashboard_starter_is_node_free_and_packaged(tmp_path: Path) -> None:
+    project = create_project(tmp_path / "dashboard", template="dashboard")
+    assert (project / "data" / "sample.csv").is_file()
+    assert (project / "frontend" / "index.html").is_file()
+    assert "DataBridge" in (project / "main.py").read_text()
+    assert inspect_project(project)["frontend"] == "html"
+    assert not (project / "frontend" / "package.json").exists()
+
+
+def test_dashboard_csv_requires_explicit_public_consent(tmp_path: Path) -> None:
+    source = tmp_path / "data.csv"
+    source.write_text("Date,Value\\n2026-11-01,12\\n", encoding="utf-8")
+    target = tmp_path / "custom"
+    with pytest.raises(ValueError, match="--public-data"):
+        create_project(target, template="dashboard", data_source=source)
+    assert not target.exists()
+    project = create_project(target, template="dashboard", data_source=source, public_data=True)
+    assert (project / "data" / "sample.csv").read_text() == source.read_text()
+
+
+def test_dashboard_rejects_invalid_custom_files_before_creation(tmp_path: Path) -> None:
+    source = tmp_path / "secret.txt"
+    source.write_text("secret", encoding="utf-8")
+    target = tmp_path / "custom"
+    with pytest.raises(ValueError, match="existing CSV"):
+        create_project(target, template="dashboard", data_source=source, public_data=True)
+    assert not target.exists()
+    with pytest.raises(ValueError, match="dashboard template"):
+        create_project(target, template="react", data_source=source, public_data=True)
+    assert not target.exists()
+
+
+def test_dashboard_cli_flags(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+    target = tmp_path / "dashboard"
+    assert main(["new", str(target), "--template", "dashboard"]) == 0
+    output = capsys.readouterr().out
+    assert "public" in output.lower()
+    assert "qpyserve[data]" in output
