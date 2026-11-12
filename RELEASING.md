@@ -51,6 +51,18 @@ The publication workflow now verifies the installed PyPI wheel with a clean
 Python environment after upload, including version and CLI checks. A failed
 install verification must be investigated even if the upload job succeeded.
 
+## QPyServe 0.7.1 recovery (2026-11-12)
+
+The v0.7.0 tag was created, but the upload did **not** happen. The 0.7.0
+Publish to PyPI build ran tests against the installed wheel and failed four
+dashboard starter tests: the wheel contained a `__pycache__` directory that
+was copied twice into the generated starter. The tag remains immutable.
+
+Version 0.7.1 fixes starter copying to skip Python caches and merge overlapping
+template directories, and adds a regression test. Once the 0.7.1 release CI
+succeeds, the new tag and trusted-publishing workflow publish 0.7.1.
+Only claim publication after both the upload and the clean PyPI install succeed.
+
 ## QPyServe 0.7.0 release scope
 
 Version 0.7.0 includes the Node-free dashboard starter, CSV/Parquet watchers,
