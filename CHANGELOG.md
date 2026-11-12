@@ -1,6 +1,16 @@
 # Changelog
 
-## 0.7.0 — Dashboard starter and simpler Data Bridge (2026-11-12)
+## 0.7.1 — Dashboard starter package fix (2026-11-12)
+
+- Fix a wheel-install-only starter failure caused by copying a packaged
+  `__pycache__` directory twice when overlaying common and dashboard files.
+- Skip Python bytecode caches in generated projects, handle existing template
+  directories safely, and add a targeted regression test.
+- Correct dashboard documentation and dependency version to 0.7.1.
+- The v0.7.0 tag failed its publish build before PyPI upload; 0.7.0 was not
+  published. Version 0.7.1 is the release containing its new features.
+
+## 0.7.0 — Unpublished tag: Dashboard starter and simpler Data Bridge (2026-11-12)
 
 ### Added
 - Node-free dashboard starter using `qpyserve new my-dashboard --template dashboard`;
