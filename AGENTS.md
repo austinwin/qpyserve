@@ -64,3 +64,8 @@ QPyServe is an intentionally thin integration layer. Maintain the smallest publi
   updates; don't claim CDC or true real-time semantics.
 - Keep `qpyserve[database]` optional, and don't import SQLAlchemy in ordinary
   QPyServe or file-only Data Bridge startup paths.
+
+- Keep the dashboard starter Node-free, with ordinary editable HTML/JS/CSS.
+- Require explicit `--public-data` for importing user CSV files into the
+  publicly readable dashboard sample. Never silently publish private data.
+- Dashboard KPI values apply to the loaded page; don't imply all-source totals.

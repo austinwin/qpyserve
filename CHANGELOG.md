@@ -1,39 +1,27 @@
 # Changelog
 
-## Unreleased — Database-server Data Bridge sources
+## 0.7.0 — Dashboard starter and simpler Data Bridge (2026-11-12)
 
-- Optional `qpyserve[database]` installs SQLAlchemy. SQL Server, PostgreSQL,
-  MySQL and other SQLAlchemy-supported databases use their respective
-  separately installed drivers.
-- `db("dbo.DailyPumpage", url_env="DWO_DB_URL", updated_at="ModifiedAt")`
-  registers a server-side database table/view inside `DataBridge(sources=...)`.
-- Filtering, column projection, sorting and bounded pagination execute on the
-  database server using bound parameters; no full-table DuckDB import.
-- Existing `data(name).rows()` and `.watch()` JavaScript APIs work unchanged.
-  Optional `updated_at` uses `MAX` for change checks; without it, re-query
-  bounded pages on the watch interval.
-- Registered databases offer JSON pages initially; Arrow is still limited
-  to DuckDB/Parquet sources. No arbitrary client SQL, automatic RLS, or
-  server-side aggregates yet.
-- Integration tests exercise SQLite execution and SQL Server SQL compilation.
-  This is not part of published QPyServe 0.6.0.
+### Added
+- Node-free dashboard starter using `qpyserve new my-dashboard --template dashboard`;
+  includes editable HTML/CSS/JS, synthetic CSV, bounded-page KPIs, metric selector,
+  chart, search, preview table, and file-change polling.
+- `--data file.csv --public-data` imports a custom CSV with an explicit
+  acknowledgement that the generated Data Bridge is public.
+- One-line CSV/Parquet registration, `/version` endpoint, and browser
+  `data(name).rows()` and `data(name).watch()` for bounded data refresh.
+- Optional `qpyserve[database]` SQLAlchemy adapter for approved SQL tables/views:
+  server-side filters, projection, sorting, pagination and optional
+  `updated_at` revision checks. DB credentials remain server-side.
+- Dashboard starter, CSV, SQL adapter and wheel resource coverage in tests/CI.
 
-
-## Unreleased — Simplified data sources and synchronization
-
-- Register local CSV or Parquet datasets with one line:
-  `DataBridge(app, public=True, sources={"name": "data/file.csv"})`.
-- `DataBridge.source(...)` infers CSV/Parquet readers and records a cheap,
-  path-private version token using file mtime and size.
-- New protected `GET /api/data/{name}/version` endpoint.
-- JavaScript `data(name).rows()` for bounded one-shot reads and
-  `data(name).watch(onData, {query, intervalMs, onError})` for automatic
-  source-change checks, re-query only when changed, and subscription cleanup.
-- No new runtime dependencies, no silent public data exposure, and no
-  automatic transfer of entire large datasets.
-- Small CSV dashboard demo and Python/Node regression tests.
-- This work is not included in the published 0.6.0 release.
-
+### Compatibility and limitations
+- Existing FastAPI + React/Vue/HTML applications retain their interfaces.
+- Dashboard example is PUBLIC until the developer adds authorization.
+- Dashboard KPIs cover only the loaded page, not all database rows.
+- File watching uses polling; SQL adapter offers neither automatic tenant
+  row restrictions nor general aggregations, arbitrary SQL or Arrow responses.
+- DuckDB, PyArrow and SQLAlchemy remain optional dependencies.
 
 ## 0.6.0 — Experimental Data Bridge and Windows developer experience (2026-11-04)
 

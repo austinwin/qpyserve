@@ -1,0 +1,56 @@
+name: One-time v0.7.0 release bootstrap
+
+# This narrow bootstrap is removed after publication. GITHUB_TOKEN tag pushes
+# do not themselves launch tag-triggered workflows, so dispatch publish.yml.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  dispatch-release:
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.event == 'push' &&
+      github.event.workflow_run.head_repository.full_name == github.repository &&
+      startsWith(github.event.workflow_run.head_commit.message, 'release: qpyserve 0.7.0')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.workflow_run.head_sha }}
+          persist-credentials: false
+      - name: Verify source version and requested release
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import tomllib
+          version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
+          assert version == "0.7.0", "Bootstrap must run only for 0.7.0"
+          assert '__version__ = "0.7.0"' in Path("src/qpyserve/__init__.py").read_text()
+          PY
+      - name: Create exact release tag and dispatch Trusted Publishing workflow
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
+        run: |
+          set -euo pipefail
+          tag=v0.7.0
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" > /tmp/tag.json 2>/dev/null; then
+            existing=$(jq -r '.object.sha' /tmp/tag.json)
+            if [ "$existing" != "$RELEASE_SHA" ]; then
+              echo "Tag already exists at a different commit; refusing to retag" >&2
+              exit 1
+            fi
+          else
+            gh api -X POST "repos/$GITHUB_REPOSITORY/git/refs" \
+              -f ref="refs/tags/$tag" -f sha="$RELEASE_SHA"
+          fi
+          gh workflow run publish.yml --ref "$tag"

@@ -83,6 +83,8 @@ jobs:
           qpyserve new /tmp/qps-html
           qpyserve new /tmp/qps-react --template react
           qpyserve new /tmp/qps-vue --template vue
+          qpyserve new /tmp/qps-dashboard --template dashboard
+          qpyserve doctor /tmp/qps-dashboard --json
           qpyserve doctor /tmp/qps-html --json
           qpyserve doctor /tmp/qps-react --json
           qpyserve doctor /tmp/qps-vue --json
@@ -102,8 +104,9 @@ jobs:
           wheel = glob.glob("dist/*.whl")[0]
           with zipfile.ZipFile(wheel) as archive:
               names = set(archive.namelist())
-          for template in ("html", "react", "vue"):
+          for template in ("html", "react", "vue", "dashboard"):
               assert f"qpyserve/_starters/{template}/frontend/index.html" in names
+          assert "qpyserve/_starters/dashboard/data/sample.csv" in names
           PY
 
 

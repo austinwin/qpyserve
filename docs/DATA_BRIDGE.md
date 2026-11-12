@@ -1,8 +1,8 @@
-# QPyServe Data Bridge (experimental, introduced in 0.6.0)
+# QPyServe Data Bridge (experimental, expanded in 0.7.0)
 
 **Big data in Python. A real JavaScript frontend. Transfer only the data the
-screen needs.** This opt-in experimental feature is available in PyPI QPyServe
-0.6.0 and newer.
+screen needs.** This opt-in experimental feature began in 0.6.0; file watching and SQL table/view
+sources are available in PyPI QPyServe 0.7.0.
 
 QPyServe Data Bridge provides a small, controlled query protocol over DuckDB.
 It builds read-only, lazy DuckDB relations and pushes column projection,
@@ -13,13 +13,13 @@ Arrow IPC response for efficient columnar consumption.
 ## Install
 
 ```bash
-python -m pip install "qpyserve[data]==0.6.0"
+python -m pip install "qpyserve[data]==0.7.0"
 ```
 
 The `data` extra installs DuckDB and PyArrow. Ordinary QPyServe installations
 do **not** import or require either package.
 
-## Simpler workflow: register a file, subscribe to changes (unreleased)
+## Simpler workflow: register a file, subscribe to changes (0.7.0)
 
 The simplest way to use Data Bridge now is to connect a CSV/Parquet file
 with a single Python statement and let the browser refresh when it changes.
@@ -104,7 +104,7 @@ row filtering in their relation providers.
 Run the [simple CSV dashboard demo](../examples/data-watch/README.md) to see
 edits to a CSV appear in a running browser automatically.
 
-## Live SQL databases: SQL Server, PostgreSQL, and MySQL (unreleased)
+## SQL databases: SQL Server, PostgreSQL, and MySQL (0.7.0)
 
 QPyServe can register a **database table or view** as a Data Bridge source.
 The SQL database does the filtering, sorting, projection, and paging itself.
@@ -208,6 +208,23 @@ claim a live PostgreSQL, MySQL or SQL Server integration test.
   relations retain their Arrow support.
 - The URI is read lazily from `url_env`. Missing credentials and query failures
   produce generic HTTP 503 errors without disclosing the connection string.
+
+## Ready-made dashboard starter
+
+Install `qpyserve[data]` and generate the Node-free HTML dashboard:
+
+```bash
+qpyserve new my-dashboard --template dashboard
+cd my-dashboard
+python main.py
+```
+
+To start with an existing CSV, supply `--data file.csv --public-data`.
+This explicit acknowledgement is required because the generated dashboard uses
+`DataBridge(app, public=True)`, which is **publicly queryable**. Add FastAPI
+authorization before connecting private records. The dashboard's mean/min/max
+are computed from the first bounded page (up to 500 rows), and must not be
+interpreted as whole-dataset statistics.
 
 ## Minimal backend: a Parquet dataset
 

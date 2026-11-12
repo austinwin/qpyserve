@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "qpyserve"
-version = "0.6.0"
+version = "0.7.0"
 description = "One-command FastAPI + Vite, typed TypeScript APIs, dev Trace and deploy-ready apps"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -52,6 +52,9 @@ qpyserve = [
   "_starters/react/frontend/src/*",
   "_starters/vue/frontend/*",
   "_starters/vue/frontend/src/*",
+  "_starters/dashboard/*",
+  "_starters/dashboard/frontend/*",
+  "_starters/dashboard/data/*",
 ]
 
 [tool.pytest.ini_options]

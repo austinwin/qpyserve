@@ -286,6 +286,23 @@ def test_version_endpoint_respects_fastapi_auth():
     assert response.json() == {"version": None}
 
 
+def test_dashboard_starter_uses_real_data_bridge(tmp_path, monkeypatch):
+    import runpy
+    from qpyserve._cli import create_project
+
+    project = create_project(tmp_path / "dashboard", template="dashboard")
+    module = runpy.run_path(str(project / "main.py"), run_name="dashboard_test")
+    client = TestClient(module["app"])
+    response = client.post(
+        "/api/data/records/query",
+        json={"columns": ["Date", "Revenue"], "limit": 30},
+    )
+    assert response.status_code == 200, response.text
+    assert len(response.json()["rows"]) == 12
+    assert response.json()["rows"][-1]["Revenue"] == 10320
+    assert client.get("/api/data/records/version").status_code == 200
+
+
 def test_data_watch_demo_is_runnable_and_returns_expected_csv(tmp_path, monkeypatch):
     import runpy
     from pathlib import Path

@@ -68,7 +68,10 @@ jobs:
               for path in ["qpyserve/_trace_client.js", "qpyserve/_client.py",
                            "qpyserve/_ship.py", "qpyserve/_cli.py",
                            "qpyserve/_data.py", "qpyserve/data.py",
-                           "qpyserve/_data_client.js"]:
+                           "qpyserve/_data_client.js",
+                           "qpyserve/_starters/dashboard/main.py",
+                           "qpyserve/_starters/dashboard/frontend/index.html",
+                           "qpyserve/_starters/dashboard/data/sample.csv"]:
                   assert path in names, f"Missing packaged file: {path}"
           PY
       - name: Verify trace client is included in release wheel
