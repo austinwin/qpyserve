@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QPyServe · Data Dashboard</title>
+<style>
+:root{font:14px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;color:#172b4d;background:#f4f7fb}
+*{box-sizing:border-box}
+body{margin:0}
+header{background:#111f38;color:#fff;padding:18px max(22px,calc((100vw - 1180px)/2));display:flex;align-items:center;justify-content:space-between;gap:12px}
+.brand{font-size:18px;font-weight:750;letter-spacing:-.4px}
+.brand span{color:#69dcce}
+header a{color:#d4ecff;text-decoration:none;font-size:13px}
+main{max-width:1180px;margin:34px auto;padding:0 22px 45px}
+.eyebrow{font-size:11px;text-transform:uppercase;letter-spacing:2px;font-weight:800;color:#5472a5}
+h1{font-size:clamp(24px,3vw,34px);letter-spacing:-1px;margin:3px 0}
+.sub{margin:0;color:#62738b}
+.top{display:flex;justify-content:space-between;gap:16px;align-items:end;flex-wrap:wrap;margin-bottom:22px}
+.status{border-radius:50px;padding:7px 12px;background:#e0f8ef;color:#13664b;font-size:12px;font-weight:600}
+.status.error{background:#fff0ed;color:#a72823}
+.metrics{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:14px;margin-bottom:16px}
+.card,.panel{background:white;border:1px solid #e0e7f0;box-shadow:0 3px 18px rgba(18,38,71,.035);border-radius:14px}
+.card{padding:19px 20px}
+.card .label{font-size:12px;color:#62738b;display:block}
+.card strong{display:block;font-size:clamp(20px,2.5vw,29px);letter-spacing:-.8px;margin-top:6px;font-variant-numeric:tabular-nums}
+.card small{display:block;color:#8290a6;margin-top:4px}
+.layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(270px,.85fr);gap:16px}
+.panel{padding:20px;min-width:0}
+.panel h2{margin:0;font-size:16px;letter-spacing:-.2px}
+.panel .hint{color:#708199;font-size:12px;margin:4px 0 16px}
+.controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+select,input{border:1px solid #d8e2ef;background:white;border-radius:9px;padding:9px 11px;max-width:100%;color:#20344f;font:inherit}
+select:focus,input:focus{outline:2px solid #63b5db;outline-offset:1px}
+#chart{width:100%;height:275px;display:block}
+.gridline{stroke:#e5ebf4;stroke-width:1}
+.charttext{font-size:11px;fill:#7b8ba1}
+.bar{fill:#347cc6}
+.bar:hover{fill:#0c507e}
+.info{display:grid;gap:13px;margin-top:18px}
+.note{border-radius:10px;background:#f1f6fc;padding:12px;color:#506481;font-size:12px}
+.tablehead{display:flex;gap:12px;justify-content:space-between;align-items:center;flex-wrap:wrap}
+.scroller{overflow:auto;max-height:380px}
+table{width:100%;border-collapse:collapse;text-align:left;font-size:13px}
+th,td{padding:11px 13px;border-bottom:1px solid #edf1f6;white-space:nowrap}
+th{position:sticky;top:0;background:#f7f9fc;color:#667b97;font-size:11px;text-transform:uppercase;letter-spacing:.5px}
+tr:hover td{background:#f8fbff}
+footer{color:#72829a;font-size:12px;margin-top:20px}
+@media(max-width:850px){.layout{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:480px){.metrics{grid-template-columns:1fr 1fr;gap:9px}.card{padding:12px}.card strong{font-size:21px}.panel{padding:14px}header{padding:14px 20px}}
+</style>
+</head>
+<body>
+<header><div class="brand">Q<span>Py</span>Serve <span>·</span> Dashboard</div><a href="/docs">FastAPI /docs</a></header>
+<main>
+  <div class="top">
+    <div><div class="eyebrow">Data Bridge starter</div><h1>Your data, connected.</h1><p class="sub">A live CSV dashboard with a real Python backend. Sample data is synthetic.</p></div>
+    <div id="status" class="status" role="status" aria-live="polite">Connecting...</div>
+  </div>
+  <div class="metrics">
+    <div class="card"><span class="label">Loaded rows</span><strong id="count">—</strong><small id="count-note">Maximum 500 per page</small></div>
+    <div class="card"><span class="label">Average · visible rows</span><strong id="mean">—</strong><small class="metric-name">Select a metric</small></div>
+    <div class="card"><span class="label">Minimum · visible rows</span><strong id="minimum">—</strong><small class="metric-name">Select a metric</small></div>
+    <div class="card"><span class="label">Maximum · visible rows</span><strong id="maximum">—</strong><small class="metric-name">Select a metric</small></div>
+  </div>
+  <div class="layout">
+    <section class="panel">
+      <div class="controls" style="justify-content:space-between"><h2>Metric trend</h2><label>Measure <select id="metric" aria-label="Chart metric"><option>Loading...</option></select></label></div>
+      <p class="hint">Preview of up to 24 filtered rows in source order, not a whole-dataset aggregate.</p>
+      <svg id="chart" viewBox="0 0 700 275" preserveAspectRatio="xMidYMid meet" role="img" aria-label="Selected metric bar chart"></svg>
+    </section>
+    <section class="panel">
+      <h2>How it works</h2>
+      <p class="hint">Everything here is editable: your Python backend and normal frontend files.</p>
+      <div class="info">
+        <div><strong>01 · Connect</strong><div class="hint">DataBridge registers data/sample.csv on the server.</div></div>
+        <div><strong>02 · Query</strong><div class="hint">The browser requests a bounded page over the same origin.</div></div>
+        <div><strong>03 · Sync</strong><div class="hint">Editing the CSV triggers an automatic refresh after a file-version check.</div></div>
+      </div>
+      <div class="note">Demo source is publicly accessible through the Data Bridge API. Add FastAPI authorization before using private data or deploying this starter.</div>
+    </section>
+  </div>
+  <section class="panel" style="margin-top:16px">
+    <div class="tablehead"><div><h2>Data preview</h2><p class="hint" id="table-note">Showing the current loaded page.</p></div><label>Search rows <input id="search" placeholder="Filter loaded rows" type="search" aria-label="Search loaded rows"></label></div>
+    <div class="scroller"><table><thead id="table-head"></thead><tbody id="table-body"></tbody></table></div>
+  </section>
+  <footer>QPyServe 0.7.0 starter · No Node.js required · KPI calculations apply only to loaded rows.</footer>
+</main>
+<script type="module">
+import {data} from "/api/data/_client.js";
+const $ = id => document.getElementById(id);
+const SVG = "http://www.w3.org/2000/svg";
+const fmt = value => Number.isFinite(value) ? new Intl.NumberFormat(undefined,{maximumFractionDigits:2}).format(value) : "—";
+let sourceRows=[], metric="", filter="", keys=[], numericKeys=[], hasMore=false;
+function svgElement(name, attrs, text) {
+  const node = document.createElementNS(SVG,name);
+  for(const [key,value] of Object.entries(attrs)) node.setAttribute(key,String(value));
+  if(text!==undefined) node.textContent=String(text);
+  return node;
+}
+function numeric(value) {
+  if(value===null || value==="" || typeof value==="boolean") return NaN;
+  return Number(value);
+}
+function renderChart(rows) {
+  const chart=$("chart"); chart.replaceChildren();
+  if(!metric || !rows.length) {
+    chart.append(svgElement("text",{x:350,y:138,"text-anchor":"middle",class:"charttext"},"No chart data for this filter"));
+    return;
+  }
+  const dataRows=rows.slice(0,24);
+  const values=dataRows.map(r=>numeric(r[metric]));
+  const max=Math.max(1,...values.filter(Number.isFinite));
+  const count=dataRows.length, gap=8, width=(620-gap*(count-1))/count, left=58, baseline=232, height=197;
+  for(let i=0;i<=4;i++){
+    const y=baseline-height*i/4;
+    chart.append(svgElement("line",{x1:left,y1:y,x2:680,y2:y,class:"gridline"}));
+    chart.append(svgElement("text",{x:50,y:y+4,"text-anchor":"end",class:"charttext"},fmt(max*i/4)));
+  }
+  dataRows.forEach((row,i)=>{
+    const value=Number.isFinite(values[i])?Math.max(0,values[i]):0;
+    const barHeight=value/max*height;
+    const x=left+i*(width+gap);
+    const rect=svgElement("rect",{x,y:baseline-barHeight,width:Math.max(1,width),height:barHeight,rx:Math.min(4,width/3),class:"bar"});
+    rect.append(svgElement("title",{},String(row[keys[0]])+" · "+metric+": "+fmt(value)));
+    chart.append(rect);
+    if(count<=12 || i%Math.ceil(count/8)===0) chart.append(svgElement("text",{x:x+width/2,y:251,"text-anchor":"middle",class:"charttext"},String(row[keys[0]]).slice(-7)));
+  });
+}
+function render() {
+  const rows=sourceRows.filter(row=>!filter||keys.some(k=>String(row[k]??"").toLowerCase().includes(filter)));
+  const values=rows.map(row=>numeric(row[metric])).filter(Number.isFinite);
+  $("count").textContent=fmt(rows.length);
+  $("count-note").textContent=hasMore ? "More rows exist on the server" : "Current bounded page";
+  $("mean").textContent=values.length?fmt(values.reduce((a,b)=>a+b,0)/values.length):"—";
+  $("minimum").textContent=values.length?fmt(Math.min(...values)):"—";
+  $("maximum").textContent=values.length?fmt(Math.max(...values)):"—";
+  document.querySelectorAll(".metric-name").forEach(el=>el.textContent=metric||"No numeric columns");
+  renderChart(rows);
+  const head=$("table-head"), body=$("table-body");head.replaceChildren();body.replaceChildren();
+  const tr=document.createElement("tr");
+  keys.slice(0,10).forEach(key=>{const th=document.createElement("th");th.textContent=key;tr.append(th)});
+  head.append(tr);
+  rows.slice(0,30).forEach(row=>{
+    const tr=document.createElement("tr");
+    keys.slice(0,10).forEach(key=>{const td=document.createElement("td");td.textContent=String(row[key]??"");tr.append(td)});
+    body.append(tr);
+  });
+  $("table-note").textContent="Showing "+Math.min(rows.length,30)+" of "+rows.length+" filtered, loaded rows"+(hasMore?" (additional pages not loaded).":".");
+}
+function sync(page) {
+  sourceRows=Array.isArray(page.rows)?page.rows:[];
+  hasMore=Boolean(page.has_more);
+  keys=sourceRows.length?Object.keys(sourceRows[0]):[];
+  numericKeys=keys.filter(k=>sourceRows.some(row=>Number.isFinite(numeric(row[k]))));
+  if(!numericKeys.includes(metric)) metric=numericKeys.includes("Revenue")?"Revenue":numericKeys[0]||"";
+  const select=$("metric");select.replaceChildren();
+  numericKeys.forEach(key=>{const option=document.createElement("option");option.value=key;option.textContent=key;select.append(option)});
+  if(!numericKeys.length){const option=document.createElement("option");option.textContent="No numeric columns";select.append(option)}
+  select.disabled=!numericKeys.length;select.value=metric;
+  const status=$("status");status.classList.remove("error");status.textContent="Synced · "+new Date().toLocaleTimeString();
+  render();
+}
+$("metric").addEventListener("change",event=>{metric=event.target.value;render()});
+$("search").addEventListener("input",event=>{filter=event.target.value.trim().toLowerCase();render()});
+const stop=data("records").watch(sync,{query:{limit:500},intervalMs:5000,onError(error){
+  const status=$("status");status.classList.add("error");status.textContent="Sync failed · "+error.message;
+}});
+window.addEventListener("pagehide",stop,{once:true});
+</script>
+</body>
+</html>
