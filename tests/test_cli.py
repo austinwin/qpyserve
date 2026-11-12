@@ -115,7 +115,7 @@ def test_dashboard_starter_is_node_free_and_packaged(tmp_path: Path) -> None:
 
 def test_dashboard_csv_requires_explicit_public_consent(tmp_path: Path) -> None:
     source = tmp_path / "data.csv"
-    source.write_text("Date,Value\\n2026-11-01,12\\n", encoding="utf-8")
+    source.write_text("Date,Value\n2026-11-01,12\n", encoding="utf-8")
     target = tmp_path / "custom"
     with pytest.raises(ValueError, match="--public-data"):
         create_project(target, template="dashboard", data_source=source)
