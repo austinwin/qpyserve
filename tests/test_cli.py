@@ -99,5 +99,6 @@ def test_starters_are_packaged_as_resources() -> None:
     from importlib.resources import files
 
     root = files("qpyserve").joinpath("_starters")
-    for template in ("html", "react", "vue"):
+    for template in ("html", "react", "vue", "dashboard"):
         assert root.joinpath(template, "frontend", "index.html").is_file()
+    assert root.joinpath("dashboard", "data", "sample.csv").is_file()
