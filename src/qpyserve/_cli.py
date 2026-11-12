@@ -186,7 +186,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.template in ("react", "vue"):
             print("Node.js or Bun is required for Vite; dependencies install on first run.")
         elif args.template == "dashboard":
-            print('Requires: python -m pip install "qpyserve[data]>=0.7.0"')
+            print('Requires: python -m pip install "qpyserve[data]>=0.7.1"')
             print("WARNING: Dashboard data is public. Protect it before deploying private data.")
         return 0
 
