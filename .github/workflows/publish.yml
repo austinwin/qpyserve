@@ -20,7 +20,22 @@ jobs:
         with:
           python-version: "3.12"
       - name: Install package and release tools
-        run: python -m pip install --upgrade ".[test,data]" twine
+        run: python -m pip install --upgrade ".[test,data,database]" twine
+      - name: Smoke-test installed wheel's dashboard scaffold
+        run: |
+          qpyserve new /tmp/qpyserve-release-dashboard --template dashboard
+          test -f /tmp/qpyserve-release-dashboard/main.py
+          test -f /tmp/qpyserve-release-dashboard/frontend/index.html
+          test -f /tmp/qpyserve-release-dashboard/data/sample.csv
+          test ! -d /tmp/qpyserve-release-dashboard/__pycache__
+          python - <<'PY'
+          import runpy
+          from fastapi.testclient import TestClient
+          module = runpy.run_path("/tmp/qpyserve-release-dashboard/main.py", run_name="wheel_check")
+          response = TestClient(module["app"]).post("/api/data/records/query", json={"limit": 3})
+          assert response.status_code == 200, response.text
+          assert len(response.json()["rows"]) == 3
+          PY
       - name: Run Python tests
         run: python -m pytest -q
       - name: Verify version matches release tag
