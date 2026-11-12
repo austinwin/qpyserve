@@ -9,7 +9,7 @@ import runpy
 from fastapi.testclient import TestClient
 import pytest
 
-from qpyserve._cli import create_project, inspect_project, main
+from qpyserve._cli import _copy_template, create_project, inspect_project, main
 
 
 @pytest.mark.parametrize("template", ["html", "react", "vue"])
@@ -142,3 +142,26 @@ def test_dashboard_cli_flags(tmp_path: Path, capsys: pytest.CaptureFixture[str])
     output = capsys.readouterr().out
     assert "public" in output.lower()
     assert "qpyserve[data]" in output
+
+
+def test_template_overlay_ignores_packaged_python_caches(tmp_path: Path) -> None:
+    """A wheel may contain __pycache__ in common and the selected template."""
+    common = tmp_path / "common"
+    dashboard = tmp_path / "dashboard-source"
+    destination = tmp_path / "result"
+    for source in (common, dashboard):
+        (source / "__pycache__").mkdir(parents=True)
+        (source / "__pycache__" / "module.cpython-312.pyc").write_bytes(b"cache")
+        (source / "frontend").mkdir()
+    (common / "frontend" / "shared.txt").write_text("shared")
+    (dashboard / "frontend" / "index.html").write_text("dashboard")
+    (dashboard / "main.py").write_text("app")
+    destination.mkdir()
+
+    _copy_template(common, destination)
+    _copy_template(dashboard, destination)
+
+    assert (destination / "frontend" / "shared.txt").read_text() == "shared"
+    assert (destination / "frontend" / "index.html").read_text() == "dashboard"
+    assert (destination / "main.py").read_text() == "app"
+    assert not (destination / "__pycache__").exists()
