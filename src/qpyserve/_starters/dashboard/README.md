@@ -7,7 +7,7 @@ QPyServe Data Bridge. No Node.js, charting library, or hand-written data route.
 
 Install the optional Data Bridge dependencies once:
 
-    python -m pip install "qpyserve[data]>=0.7.0"
+    python -m pip install "qpyserve[data]>=0.7.1"
 
 Then start the generated app:
 
@@ -37,5 +37,5 @@ public=True with appropriate FastAPI authorization and row-level restrictions.
   Do not interpret a bounded page's totals as totals for the entire dataset.
 
 Read the Data Bridge guide at
-https://github.com/austinwin/qpyserve/blob/v0.7.0/docs/DATA_BRIDGE.md .
+https://github.com/austinwin/qpyserve/blob/v0.7.1/docs/DATA_BRIDGE.md .
 The generated dashboard is a starter, not a production analytics platform.
