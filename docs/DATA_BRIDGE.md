@@ -1,8 +1,8 @@
-# QPyServe Data Bridge (experimental, expanded in 0.7.0)
+# QPyServe Data Bridge (experimental, expanded in 0.7.1)
 
 **Big data in Python. A real JavaScript frontend. Transfer only the data the
 screen needs.** This opt-in experimental feature began in 0.6.0; file watching and SQL table/view
-sources are available in PyPI QPyServe 0.7.0.
+sources are available in PyPI QPyServe 0.7.1.
 
 QPyServe Data Bridge provides a small, controlled query protocol over DuckDB.
 It builds read-only, lazy DuckDB relations and pushes column projection,
@@ -13,13 +13,13 @@ Arrow IPC response for efficient columnar consumption.
 ## Install
 
 ```bash
-python -m pip install "qpyserve[data]==0.7.0"
+python -m pip install "qpyserve[data]==0.7.1"
 ```
 
 The `data` extra installs DuckDB and PyArrow. Ordinary QPyServe installations
 do **not** import or require either package.
 
-## Simpler workflow: register a file, subscribe to changes (0.7.0)
+## Simpler workflow: register a file, subscribe to changes (0.7.1)
 
 The simplest way to use Data Bridge now is to connect a CSV/Parquet file
 with a single Python statement and let the browser refresh when it changes.
@@ -104,7 +104,7 @@ row filtering in their relation providers.
 Run the [simple CSV dashboard demo](../examples/data-watch/README.md) to see
 edits to a CSV appear in a running browser automatically.
 
-## SQL databases: SQL Server, PostgreSQL, and MySQL (0.7.0)
+## SQL databases: SQL Server, PostgreSQL, and MySQL (0.7.1)
 
 QPyServe can register a **database table or view** as a Data Bridge source.
 The SQL database does the filtering, sorting, projection, and paging itself.

@@ -21,9 +21,16 @@ _STARTER_NAMES = ("html", "react", "vue", "dashboard")
 def _copy_template(source: Any, destination: Path) -> None:
     """Copy files from a packaged template, including zipped distributions."""
     for child in source.iterdir():
+        # Wheels may include bytecode caches from their build environment.
+        # These are not starter source files and must never be copied.
+        if child.name == "__pycache__" or child.name.endswith((".pyc", ".pyo")):
+            continue
         target = destination / child.name
         if child.is_dir():
-            target.mkdir()
+            if target.is_symlink():
+                raise ValueError(f"Refusing to copy through a symlink: {target}")
+            # common/ and the selected template intentionally overlay folders.
+            target.mkdir(exist_ok=True)
             _copy_template(child, target)
         else:
             target.write_bytes(child.read_bytes())
@@ -179,7 +186,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         if args.template in ("react", "vue"):
             print("Node.js or Bun is required for Vite; dependencies install on first run.")
         elif args.template == "dashboard":
-            print('Requires: python -m pip install "qpyserve[data]>=0.7.0"')
+            print('Requires: python -m pip install "qpyserve[data]>=0.7.1"')
             print("WARNING: Dashboard data is public. Protect it before deploying private data.")
         return 0
 

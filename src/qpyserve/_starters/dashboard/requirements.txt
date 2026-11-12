@@ -1,2 +1,2 @@
 # Used by qpyserve ship Docker builds; editable by the application owner.
-qpyserve[data]>=0.7.0,<0.8
+qpyserve[data]>=0.7.1,<0.8

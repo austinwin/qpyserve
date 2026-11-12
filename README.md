@@ -8,7 +8,7 @@
 
 QPyServe runs ordinary [FastAPI](https://fastapi.tiangolo.com/) applications with plain HTML/JavaScript, React, Vue, or other [Vite](https://vite.dev/)-based frontends. It keeps your frontend and backend as normal source files; it does **not** replace either framework.
 
-**New in 0.7.0:** A Node-free CSV dashboard starter, simple file-change refresh, and optional SQL database sources. Data Bridge remains opt-in and experimental. See the [changelog](CHANGELOG.md), [Data Bridge guide](docs/DATA_BRIDGE.md), [Typed API guide](docs/TYPED_API.md), and [Ship guide](docs/SHIP.md).
+**New in 0.7.1:** A Node-free CSV dashboard starter, simple file-change refresh, and optional SQL database sources. Data Bridge remains opt-in and experimental. See the [changelog](CHANGELOG.md), [Data Bridge guide](docs/DATA_BRIDGE.md), [Typed API guide](docs/TYPED_API.md), and [Ship guide](docs/SHIP.md).
 
 ## Quick start
 
@@ -28,7 +28,7 @@ Open **http://localhost:1111**. The frontend, `/api/hello`, and FastAPI's `/docs
 Install the optional Data Bridge extra and create a dashboard:
 
 ```bash
-python -m pip install --upgrade "qpyserve[data]>=0.7.0"
+python -m pip install --upgrade "qpyserve[data]>=0.7.1"
 qpyserve new my-dashboard --template dashboard
 cd my-dashboard
 python main.py
@@ -122,7 +122,7 @@ qpyserve api --check --json  # Non-writing CI/AI check; exit 1 on drift
 
 Generated files are replaced only when marked as QPyServe-generated; manually authored files are protected. The CLI `api` command **imports and executes trusted project code** to obtain the schema, unlike `doctor`. JSON request/response contracts are supported; unsupported multipart, streaming, cookie and non-JSON operations are reported as skipped, not silently typed incorrectly. Types are compile-time contracts, not runtime validation.
 
-[Full Typed API documentation](https://github.com/austinwin/qpyserve/blob/v0.7.0/docs/TYPED_API.md)
+[Full Typed API documentation](https://github.com/austinwin/qpyserve/blob/v0.7.1/docs/TYPED_API.md)
 
 ## Trace: debug frontend and backend together
 
@@ -132,7 +132,7 @@ When a generated API call fails, the report can connect the browser request ID t
 
 **Trace is development-only and is disabled in production.** It does not store bodies, cookies, authorization headers, query strings, or absolute filesystem paths. It is not production monitoring or automatic root-cause analysis. Review copied reports before sharing. Disable locally using `run(app, trace=False)`.
 
-[Trace guide](https://github.com/austinwin/qpyserve/blob/v0.7.0/docs/TRACE.md) · [Interactive failure demo](https://github.com/austinwin/qpyserve/tree/v0.7.0/examples/trace-demo/README.md)
+[Trace guide](https://github.com/austinwin/qpyserve/blob/v0.7.1/docs/TRACE.md) · [Interactive failure demo](https://github.com/austinwin/qpyserve/tree/v0.7.1/examples/trace-demo/README.md)
 
 ## Ship: prepare a deployable app
 
@@ -147,11 +147,11 @@ docker run --rm -p 10000:10000 my-app
 
 **Ship does not deploy, create accounts, push code, or provide persistent storage.** Review the files, build locally, push to GitHub, and create a Render Blueprint from `render.yaml` if you choose Render. The generated free plan is for previews: free services sleep and have ephemeral storage. For production, add authentication, HTTPS, monitoring, durable storage, and an appropriate paid service plan as needed.
 
-[Ship and deployment guide](https://github.com/austinwin/qpyserve/blob/v0.7.0/docs/SHIP.md)
+[Ship and deployment guide](https://github.com/austinwin/qpyserve/blob/v0.7.1/docs/SHIP.md)
 
-## Experimental: Data Bridge (expanded in 0.7.0)
+## Experimental: Data Bridge (expanded in 0.7.1)
 
-**Python for big data. JavaScript for the interface.** QPyServe 0.7.0
+**Python for big data. JavaScript for the interface.** QPyServe 0.7.1
 includes an optional experimental lazy-data bridge built on DuckDB and Apache Arrow.
 Python registers a Parquet dataset once; React, Vue, or plain HTML requests
 only selected columns, server-side filters, sort order and bounded pages.
@@ -169,14 +169,14 @@ import { dataset } from "/api/data/_client.js";
 const page = await dataset("pipes").query({ limit: 100, columns: ["pipe_id", "diameter"] });
 ```
 
-Install with `python -m pip install "qpyserve[data]==0.7.0"` to try this experimental
+Install with `python -m pip install "qpyserve[data]==0.7.1"` to try this experimental
 feature. **Data Bridge deliberately requires explicit public access or FastAPI
 authorization dependencies**; it never exposes local tables by default.
 
-[Data Bridge design, examples and limitations](https://github.com/austinwin/qpyserve/blob/v0.7.0/docs/DATA_BRIDGE.md)
-· [Live million-row local demo](https://github.com/austinwin/qpyserve/tree/v0.7.0/examples/data-bridge)
+[Data Bridge design, examples and limitations](https://github.com/austinwin/qpyserve/blob/v0.7.1/docs/DATA_BRIDGE.md)
+· [Live million-row local demo](https://github.com/austinwin/qpyserve/tree/v0.7.1/examples/data-bridge)
 
-### Easiest Data Bridge workflow (0.7.0)
+### Easiest Data Bridge workflow (0.7.1)
 
 Register an existing local CSV or Parquet file once. Your dashboard
 can observe changes without hand-written REST routes or polling logic:
@@ -198,12 +198,12 @@ Plain JavaScript, React, and Vue are supported; no separate npm package or
 dashboard framework is required.
 
 **Security:** `public=True` is only for intentionally public data. Private
-dashboards must use FastAPI authorization dependencies. This convenience API is included in PyPI 0.7.0.
+dashboards must use FastAPI authorization dependencies. This convenience API is included in PyPI 0.7.1.
 
 [Simple sync demo](examples/data-watch/README.md) ·
 [Source registration, query limits and refresh behavior](docs/DATA_BRIDGE.md)
 
-### Database server sources (0.7.0)
+### Database server sources (0.7.1)
 
 Use the **same frontend API** for a database server as for CSV or Parquet.
 The SQL database handles filtering, sorting and pagination; QPyServe does
@@ -255,13 +255,13 @@ run(
 
 Development mode binds to the local loopback interface; **never publish a Vite development server**. Production deployments need appropriate HTTPS termination, authentication, authorization, rate limiting, backup, and monitoring. QPyServe does not include a database ORM, authentication system, cloud provisioning, distributed sessions, or load balancing. Static assets under the public frontend directory are readable by clients; never put credentials there.
 
-See [Security](https://github.com/austinwin/qpyserve/blob/v0.7.0/SECURITY.md) and [deployment guidance](https://github.com/austinwin/qpyserve/blob/v0.7.0/docs/SHIP.md). Benchmark your own workload; QPyServe makes no unsupported performance or concurrency claims.
+See [Security](https://github.com/austinwin/qpyserve/blob/v0.7.1/SECURITY.md) and [deployment guidance](https://github.com/austinwin/qpyserve/blob/v0.7.1/docs/SHIP.md). Benchmark your own workload; QPyServe makes no unsupported performance or concurrency claims.
 
 ## Project resources
 
-- [Dashboard starter](https://github.com/austinwin/qpyserve/tree/v0.7.0/src/qpyserve/_starters/dashboard) · [HTML counter](https://github.com/austinwin/qpyserve/tree/v0.7.0/examples/counter-html) · [React counter](https://github.com/austinwin/qpyserve/tree/v0.7.0/examples/counter-react) · [Trace example](https://github.com/austinwin/qpyserve/tree/v0.7.0/examples/trace-demo)
-- [Typed API](https://github.com/austinwin/qpyserve/blob/v0.7.0/docs/TYPED_API.md) · [Trace](https://github.com/austinwin/qpyserve/blob/v0.7.0/docs/TRACE.md) · [Ship](https://github.com/austinwin/qpyserve/blob/v0.7.0/docs/SHIP.md)
-- [Changelog](https://github.com/austinwin/qpyserve/blob/v0.7.0/CHANGELOG.md) · [Contributing](https://github.com/austinwin/qpyserve/blob/v0.7.0/CONTRIBUTING.md) · [Releasing](https://github.com/austinwin/qpyserve/blob/v0.7.0/RELEASING.md) · [Security](https://github.com/austinwin/qpyserve/blob/v0.7.0/SECURITY.md) · [AI agent guide](https://github.com/austinwin/qpyserve/blob/v0.7.0/AGENTS.md)
+- [Dashboard starter](https://github.com/austinwin/qpyserve/tree/v0.7.1/src/qpyserve/_starters/dashboard) · [HTML counter](https://github.com/austinwin/qpyserve/tree/v0.7.1/examples/counter-html) · [React counter](https://github.com/austinwin/qpyserve/tree/v0.7.1/examples/counter-react) · [Trace example](https://github.com/austinwin/qpyserve/tree/v0.7.1/examples/trace-demo)
+- [Typed API](https://github.com/austinwin/qpyserve/blob/v0.7.1/docs/TYPED_API.md) · [Trace](https://github.com/austinwin/qpyserve/blob/v0.7.1/docs/TRACE.md) · [Ship](https://github.com/austinwin/qpyserve/blob/v0.7.1/docs/SHIP.md)
+- [Changelog](https://github.com/austinwin/qpyserve/blob/v0.7.1/CHANGELOG.md) · [Contributing](https://github.com/austinwin/qpyserve/blob/v0.7.1/CONTRIBUTING.md) · [Releasing](https://github.com/austinwin/qpyserve/blob/v0.7.1/RELEASING.md) · [Security](https://github.com/austinwin/qpyserve/blob/v0.7.1/SECURITY.md) · [AI agent guide](https://github.com/austinwin/qpyserve/blob/v0.7.1/AGENTS.md)
 
 Run development checks:
 

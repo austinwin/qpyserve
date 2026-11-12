@@ -1,4 +1,4 @@
-name: One-time v0.7.0 release bootstrap
+name: One-time v0.7.1 release bootstrap
 
 # This narrow bootstrap is removed after publication. GITHUB_TOKEN tag pushes
 # do not themselves launch tag-triggered workflows, so dispatch publish.yml.
@@ -17,7 +17,7 @@ jobs:
       github.event.workflow_run.conclusion == 'success' &&
       github.event.workflow_run.event == 'push' &&
       github.event.workflow_run.head_repository.full_name == github.repository &&
-      startsWith(github.event.workflow_run.head_commit.message, 'release: qpyserve 0.7.0')
+      startsWith(github.event.workflow_run.head_commit.message, 'release: qpyserve 0.7.1')
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -33,8 +33,8 @@ jobs:
           from pathlib import Path
           import tomllib
           version = tomllib.loads(Path("pyproject.toml").read_text())["project"]["version"]
-          assert version == "0.7.0", "Bootstrap must run only for 0.7.0"
-          assert '__version__ = "0.7.0"' in Path("src/qpyserve/__init__.py").read_text()
+          assert version == "0.7.1", "Bootstrap must run only for 0.7.1"
+          assert '__version__ = "0.7.1"' in Path("src/qpyserve/__init__.py").read_text()
           PY
       - name: Create exact release tag and dispatch Trusted Publishing workflow
         env:
@@ -42,7 +42,7 @@ jobs:
           RELEASE_SHA: ${{ github.event.workflow_run.head_sha }}
         run: |
           set -euo pipefail
-          tag=v0.7.0
+          tag=v0.7.1
           if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$tag" > /tmp/tag.json 2>/dev/null; then
             existing=$(jq -r '.object.sha' /tmp/tag.json)
             if [ "$existing" != "$RELEASE_SHA" ]; then
