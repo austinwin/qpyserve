@@ -15,7 +15,7 @@ from ._ship import prepare_ship
 from ._tooling import _manager_command, has_vite, package_manager
 
 
-_STARTER_NAMES = ("html", "react", "vue")
+_STARTER_NAMES = ("html", "react", "vue", "dashboard")
 
 
 def _copy_template(source: Any, destination: Path) -> None:
@@ -29,10 +29,34 @@ def _copy_template(source: Any, destination: Path) -> None:
             target.write_bytes(child.read_bytes())
 
 
-def create_project(path: str | Path, template: str = "html") -> Path:
-    """Create a self-contained starter without overwriting existing files."""
+def create_project(
+    path: str | Path,
+    template: str = "html",
+    *,
+    data_source: str | Path | None = None,
+    public_data: bool = False,
+) -> Path:
+    """Create a starter without overwriting existing files or publishing data silently."""
     if template not in _STARTER_NAMES:
         raise ValueError(f"Unknown starter: {template!r}")
+    source = None
+    if data_source is not None or public_data:
+        if template != "dashboard" or data_source is None:
+            raise ValueError("--data and --public-data apply only to the dashboard template")
+        if not public_data:
+            raise ValueError("Custom dashboard data requires explicit --public-data acknowledgement")
+        source = Path(data_source).expanduser().resolve()
+        if not source.is_file() or source.suffix.lower() != ".csv":
+            raise ValueError("--data must point to an existing CSV file")
+        # Protect against accidentally copying very large files into public demos.
+        if source.stat().st_size > 20 * 1024 * 1024:
+            raise ValueError("--data CSV exceeds the 20 MB starter import limit")
+        import csv
+
+        with source.open("r", encoding="utf-8-sig", newline="") as file:
+            header = next(csv.reader(file), [])
+        if len(header) < 2 or not all(header):
+            raise ValueError("--data CSV needs at least two named columns")
     target = Path(path).expanduser().absolute()
     if target.exists() or target.is_symlink():
         raise FileExistsError(f"Destination already exists: {target}")
@@ -44,6 +68,8 @@ def create_project(path: str | Path, template: str = "html") -> Path:
     try:
         _copy_template(root.joinpath("common"), target)
         _copy_template(root.joinpath(template), target)
+        if source is not None:
+            shutil.copyfile(source, target / "data" / "sample.csv")
     except Exception:
         # Only remove the directory that was just created. Never delete user data.
         shutil.rmtree(target)
@@ -122,6 +148,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     new = commands.add_parser("new", help="Create a working full-stack project")
     new.add_argument("directory", help="New directory for the application")
     new.add_argument("--template", choices=_STARTER_NAMES, default="html")
+    new.add_argument("--data", help="Existing CSV for dashboard starter (requires --public-data)")
+    new.add_argument("--public-data", action="store_true", help="Acknowledge public CSV exposure")
     doctor = commands.add_parser("doctor", help="Check a project's development setup")
     doctor.add_argument("directory", nargs="?", default=".")
     doctor.add_argument("--json", action="store_true", help="Machine-readable diagnostics for AI tools")
@@ -140,13 +168,19 @@ def main(argv: Sequence[str] | None = None) -> int:
 
     if args.command == "new":
         try:
-            target = create_project(args.directory, template=args.template)
+            target = create_project(
+                args.directory, template=args.template,
+                data_source=args.data, public_data=args.public_data,
+            )
         except (OSError, ValueError) as exc:
             parser.exit(1, f"qpyserve: {exc}\n")
         print(f"Created {args.template} + FastAPI project in {target}")
         print(f"\n  cd \"{target}\"\n  python main.py\n")
-        if args.template != "html":
+        if args.template in ("react", "vue"):
             print("Node.js or Bun is required for Vite; dependencies install on first run.")
+        elif args.template == "dashboard":
+            print('Requires: python -m pip install "qpyserve[data]>=0.7.0"')
+            print("WARNING: Dashboard data is public. Protect it before deploying private data.")
         return 0
 
     if args.command == "ship":
